@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { Colors, Radius, Shadow } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { eventoService } from '@/services/evento.service';
 import { EventoAgenda } from '@/types/domain';
 
@@ -20,7 +21,12 @@ function formatSelectedDate(dateKey: string) {
   });
 }
 
+function formatEventDate(dateTime: string) {
+  return `${dateTime.slice(8, 10)}/${dateTime.slice(5, 7)}`;
+}
+
 export default function CalendarioScreen() {
+  const { usuario } = useAuth();
   const [agenda, setAgenda] = useState<EventoAgenda[]>([]);
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [loading, setLoading] = useState(true);
@@ -63,13 +69,23 @@ export default function CalendarioScreen() {
     .filter((event) => event.start.slice(0, 10) === selectedDate)
     .sort((a, b) => a.start.localeCompare(b.start));
 
+  const nextEvent = agenda
+    .filter((event) => new Date(event.start).getTime() >= Date.now())
+    .sort((a, b) => a.start.localeCompare(b.start))[0];
+
   const selectDate = (date: DateData) => setSelectedDate(date.dateString);
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.heading}>
-        <Text style={styles.title}>Agenda</Text>
-        <Text style={styles.subtitle}>Calendario de eventos</Text>
+        <Text style={styles.title}>Hola {usuario?.nombre ?? ''}!</Text>
+        <Text style={styles.subtitle}>
+          {loading
+            ? 'Cargando próximo evento...'
+            : nextEvent
+              ? `Próximo evento: ${formatEventDate(nextEvent.start)}, ${nextEvent.title}`
+              : 'No hay próximos eventos'}
+        </Text>
       </View>
 
       <View style={styles.calendarCard}>

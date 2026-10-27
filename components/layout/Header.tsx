@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
-import { Colors, Typography } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HeaderProps {

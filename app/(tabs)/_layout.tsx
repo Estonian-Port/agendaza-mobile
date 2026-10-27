@@ -1,10 +1,9 @@
-import React from 'react';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Tabs, Redirect } from 'expo-router';
-import { Building2, CalendarDays, ChevronLeft, ChevronRight, LogOut, Plus, Settings, UserRound, Wallet } from 'lucide-react-native';
+import { Tabs, Redirect, useRouter } from 'expo-router';
+import { Building2, CalendarDays, ChevronLeft, ChevronRight, LogOut, Plus, Repeat, Settings, UserRound, Wallet } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
-import { Colors, Typography } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { Rol } from '@/types/domain';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,27 +12,24 @@ const ROLE_TABS: Record<Rol, { name: string; title: string; icon: any; roles: Ro
     { name: 'calendario', title: 'Agenda', icon: CalendarDays, roles: ['ADMINISTRADOR', 'ENCARGADO', 'EMPLEADO'] },
     { name: 'nueva', title: 'Reservar', icon: Plus, roles: ['ADMINISTRADOR', 'ENCARGADO'] },
     { name: 'finanzas', title: 'Finanzas', icon: Wallet, roles: ['ADMINISTRADOR', 'ENCARGADO'] },
-    { name: 'ajustes', title: 'Ajustes', icon: Settings, roles: ['ADMINISTRADOR', 'ENCARGADO', 'CLIENTE', 'EMPLEADO'] },
   ],
   ENCARGADO: [
     { name: 'calendario', title: 'Agenda', icon: CalendarDays, roles: ['ADMINISTRADOR', 'ENCARGADO', 'EMPLEADO'] },
     { name: 'nueva', title: 'Reservar', icon: Plus, roles: ['ADMINISTRADOR', 'ENCARGADO'] },
     { name: 'finanzas', title: 'Finanzas', icon: Wallet, roles: ['ADMINISTRADOR', 'ENCARGADO'] },
-    { name: 'ajustes', title: 'Ajustes', icon: Settings, roles: ['ADMINISTRADOR', 'ENCARGADO', 'CLIENTE', 'EMPLEADO'] },
   ],
   CLIENTE: [
     { name: 'calendario', title: 'Mis Eventos', icon: CalendarDays, roles: ['CLIENTE'] },
-    { name: 'ajustes', title: 'Ajustes', icon: Settings, roles: ['ADMINISTRADOR', 'ENCARGADO', 'CLIENTE', 'EMPLEADO'] },
   ],
   EMPLEADO: [
     { name: 'calendario', title: 'Agenda', icon: CalendarDays, roles: ['ADMINISTRADOR', 'ENCARGADO', 'EMPLEADO'] },
     { name: 'nueva', title: 'Reservar', icon: Plus, roles: ['ADMINISTRADOR', 'ENCARGADO'] },
-    { name: 'ajustes', title: 'Ajustes', icon: Settings, roles: ['ADMINISTRADOR', 'ENCARGADO', 'CLIENTE', 'EMPLEADO'] },
   ],
 };
 
 export default function TabLayout() {
-  const { usuario, logout } = useAuth();
+  const router = useRouter();
+  const { usuario, agendas, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuView, setMenuView] = useState<'menu' | 'profile' | 'company'>('menu');
@@ -49,7 +45,19 @@ export default function TabLayout() {
       <View style={[styles.navbar, { paddingTop: insets.top + 8 }]}>
         <View style={styles.brand}>
           <CalendarDays size={23} color={Colors.primary} strokeWidth={2.2} />
-          <Text style={styles.brandName}>Agendaza</Text>
+          {agendas.length > 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cambiar de agenda"
+              onPress={() => router.push('/seleccionar-agenda')}
+              style={({ pressed }) => [styles.switchAgendaButton, pressed && styles.pressed]}
+            >
+              <Repeat size={16} color={Colors.white} strokeWidth={2} />
+              <Text style={styles.switchAgendaLabel}>Cambiar de agenda</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.brandName}>Agendaza</Text>
+          )}
         </View>
         <Pressable
           accessibilityRole="button"
@@ -73,13 +81,14 @@ export default function TabLayout() {
             backgroundColor: Colors.white,
             borderTopColor: Colors.neutralBorder,
             borderTopWidth: 1,
-            height: 64,
-            paddingBottom: 8,
+            height: 72 + insets.bottom,
+            paddingBottom: Math.max(insets.bottom, 8),
             paddingTop: 8,
           },
           tabBarLabelStyle: {
             fontFamily: 'Inter-Medium',
             fontSize: 11,
+            lineHeight: 16,
             marginTop: 2,
           },
         }}
@@ -184,6 +193,17 @@ const styles = StyleSheet.create({
     fontSize: 19,
     color: Colors.textDark,
   },
+  switchAgendaButton: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.primary,
+  },
+  switchAgendaLabel: { fontFamily: 'Inter-SemiBold', fontSize: 12, color: Colors.white },
   userButton: {
     width: 38,
     height: 38,
