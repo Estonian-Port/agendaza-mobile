@@ -4,7 +4,6 @@ import * as SecureStore from 'expo-secure-store';
 import { CustomResponse } from '@/types/domain';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
-export const USE_MOCK = (process.env.EXPO_PUBLIC_USE_MOCK ?? 'false') === 'true';
 
 const TOKEN_KEY = 'agendaza_jwt';
 

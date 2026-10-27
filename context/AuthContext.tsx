@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { authService } from '@/services/auth.service';
 import { empresaService, setEmpresaActivaId } from '@/services/empresa.service';
-import { USE_MOCK } from '@/services/api-client';
 import { Empresa, Rol, Usuario } from '@/types/domain';
 
 interface AuthContextValue {
@@ -34,9 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (assigned.length === 0) {
         throw new Error('El usuario no tiene agendas asignadas.');
       }
-      const rol = USE_MOCK
-        ? session.usuario.rol
-        : await authService.getRolByEmpresaAndUsuario(session.usuario.id, assigned[0].id);
+      const rol = await authService.getRolByEmpresaAndUsuario(session.usuario.id, assigned[0].id);
       setAgendas(assigned);
       setToken(session.token);
       if (assigned.length === 1) {
@@ -66,9 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!usuario) return;
     setLoading(true);
     try {
-      const rol = USE_MOCK
-        ? usuario.rol
-        : await authService.getRolByEmpresaAndUsuario(usuario.id, agenda.id);
+      const rol = await authService.getRolByEmpresaAndUsuario(usuario.id, agenda.id);
       setEmpresaActivaId(agenda.id);
       setUsuario({ ...usuario, rol, empresaId: agenda.id, empresaNombre: agenda.nombre });
     } finally {

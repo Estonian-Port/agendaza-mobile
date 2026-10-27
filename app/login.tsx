@@ -9,7 +9,7 @@ import {
   Pressable,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { Lock, UserRound, Eye, EyeOff } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
@@ -19,11 +19,19 @@ import { Button } from '@/components/ui/Button';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, loading, error } = useAuth();
+  const { usuario, agendas, login, loading, error } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState(false);
+
+  if (usuario) {
+    return (
+      <Redirect
+        href={agendas.length > 1 && !usuario.empresaId ? '/seleccionar-agenda' : '/(tabs)/calendario'}
+      />
+    );
+  }
 
   const handleLogin = async () => {
     setTouched(true);

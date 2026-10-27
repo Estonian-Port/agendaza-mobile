@@ -1,6 +1,5 @@
-import api, { apiGet, USE_MOCK, saveToken, clearToken, getToken } from './api-client';
+import api, { apiGet, saveToken, clearToken, getToken } from './api-client';
 import { AuthSession, Cliente, Usuario } from '@/types/domain';
-import { mockClientes } from './mock-data';
 import axios from 'axios';
 
 interface UsuarioMeDTO {
@@ -104,10 +103,6 @@ export const authService = {
   },
 
   async buscarClientePorCelular(celular: string): Promise<Cliente | null> {
-    if (USE_MOCK) {
-      const found = mockClientes.find((c) => c.celular === celular);
-      return found ?? null;
-    }
     try {
       const usuario = await apiGet<UsuarioClienteDTO>('/v1/usuarios/celular', { celular });
       return mapUsuarioCliente(usuario);
@@ -117,10 +112,6 @@ export const authService = {
   },
 
   async buscarClientePorEmail(email: string): Promise<Cliente | null> {
-    if (USE_MOCK) {
-      const found = mockClientes.find((c) => c.email === email);
-      return found ?? null;
-    }
     try {
       const usuario = await apiGet<UsuarioClienteDTO>('/v1/usuarios/email', { email });
       return mapUsuarioCliente(usuario);

@@ -233,7 +233,7 @@ export default function FinanzasScreen() {
             icon={<ArrowUpRight size={17} color={Colors.success} />}
           />
           <SummaryCard
-            label="Gastos"
+            label="Egresos"
             amount={resumen?.egresos ?? 0}
             color={Colors.danger}
             icon={<ArrowDownLeft size={17} color={Colors.danger} />}
