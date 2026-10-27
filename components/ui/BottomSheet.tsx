@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, StyleSheet, View, Pressable, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Animated, Modal, PanResponder, StyleSheet, View, Pressable, ScrollView } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/theme';
 import { Text } from 'react-native';
@@ -13,23 +13,59 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ open, onClose, title, children, height = '65%' }: BottomSheetProps) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const contentScrollY = useRef(0);
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, gesture) =>
+      gesture.dy > 5 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (gesture.y0 <= 200 || contentScrollY.current <= 0),
+    onMoveShouldSetPanResponder: (_, gesture) =>
+      gesture.dy > 5 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (gesture.y0 <= 200 || contentScrollY.current <= 0),
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderMove: (_, gesture) => translateY.setValue(Math.max(0, gesture.dy)),
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dy > 60 || (gesture.dy > 24 && gesture.vy > 0.25)) {
+        onClose();
+      } else {
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
+      }
+    },
+    onPanResponderTerminate: (_, gesture) => {
+      if (gesture.dy > 60 || (gesture.dy > 24 && gesture.vy > 0.25)) {
+        onClose();
+      } else {
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
+      }
+    },
+  }), [onClose, translateY]);
+
+  useEffect(() => {
+    if (open) translateY.setValue(0);
+  }, [open, translateY]);
+
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
-        <View style={[styles.sheet, { height }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <Text style={[Typography.heading, styles.title]}>{title}</Text>
-            <Pressable onPress={onClose} style={styles.closeBtn}>
-              <X size={20} color={Colors.text} />
-            </Pressable>
-          </View>
+        <Animated.View {...panResponder.panHandlers} style={[styles.sheet, { height, transform: [{ translateY }] }]}>
+            <View style={styles.handleArea}>
+              <View style={styles.handle} />
+            </View>
+            <View style={styles.header}>
+              <Text style={[Typography.heading, styles.title]}>{title}</Text>
+              <Pressable onPress={onClose} style={styles.closeBtn}>
+                <X size={20} color={Colors.text} />
+              </Pressable>
+            </View>
           <View style={styles.divider} />
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            onScroll={(event) => { contentScrollY.current = event.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={16}
+          >
             {children}
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -49,13 +85,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.cardLg,
     borderTopRightRadius: Radius.cardLg,
   },
+  handleArea: {
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   handle: {
     width: 40,
     height: 5,
     borderRadius: 3,
     backgroundColor: Colors.neutralBorder,
     alignSelf: 'center',
-    marginTop: 8,
   },
   header: {
     flexDirection: 'row',

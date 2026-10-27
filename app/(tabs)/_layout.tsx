@@ -47,6 +47,8 @@ export default function TabLayout() {
   const currentTab = pathname.split('/').pop();
 
   const openTab = (name: string) => {
+    if (currentTab === name) return;
+
     const href = `/(tabs)/${name}` as Href;
     if (name === 'calendario') {
       router.dismissTo(href);
