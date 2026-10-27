@@ -15,8 +15,9 @@ interface BottomSheetProps {
 export function BottomSheet({ open, onClose, title, children, height = '65%' }: BottomSheetProps) {
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.sheet, { height }]} onPress={(e) => e.stopPropagation()}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
+        <View style={[styles.sheet, { height }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={[Typography.heading, styles.title]}>{title}</Text>
@@ -28,8 +29,8 @@ export function BottomSheet({ open, onClose, title, children, height = '65%' }: 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {children}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -39,6 +40,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFill,
   },
   sheet: {
     backgroundColor: Colors.white,

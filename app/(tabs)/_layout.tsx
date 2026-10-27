@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Tabs, Redirect, useRouter } from 'expo-router';
+import { Redirect, Stack, usePathname, useRouter, type Href } from 'expo-router';
 import { Building2, CalendarDays, ChevronLeft, ChevronRight, LogOut, Plus, Repeat, Settings, UserRound, Wallet } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { Colors } from '@/constants/theme';
@@ -27,8 +27,13 @@ const ROLE_TABS: Record<Rol, { name: string; title: string; icon: any; roles: Ro
   ],
 };
 
+export const unstable_settings = {
+  initialRouteName: 'calendario',
+};
+
 export default function TabLayout() {
   const router = useRouter();
+  const pathname = usePathname();
   const { usuario, agendas, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -39,6 +44,18 @@ export default function TabLayout() {
   }
 
   const tabs = ROLE_TABS[usuario.rol];
+  const currentTab = pathname.split('/').pop();
+
+  const openTab = (name: string) => {
+    const href = `/(tabs)/${name}` as Href;
+    if (name === 'calendario') {
+      router.dismissTo(href);
+    } else if (currentTab === 'calendario') {
+      router.push(href);
+    } else {
+      router.replace(href);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -76,38 +93,43 @@ export default function TabLayout() {
         </Pressable>
       </View>
 
-      <Tabs
+      <Stack
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: Colors.primary,
-          tabBarInactiveTintColor: Colors.text,
-          tabBarStyle: {
-            backgroundColor: Colors.white,
-            borderTopColor: Colors.neutralBorder,
-            borderTopWidth: 1,
-            height: 72 + insets.bottom,
-            paddingBottom: Math.max(insets.bottom, 8),
-            paddingTop: 8,
-          },
-          tabBarLabelStyle: {
-            fontFamily: 'Inter-Medium',
-            fontSize: 11,
-            lineHeight: 16,
-            marginTop: 2,
-          },
+          animation: 'slide_from_right',
+          gestureEnabled: true,
         }}
       >
-        {tabs.map((tab) => (
-          <Tabs.Screen
-            key={tab.name}
-            name={tab.name}
-            options={{
-              title: tab.title,
-              tabBarIcon: ({ color, size }) => <tab.icon color={color} size={size} strokeWidth={2} />,
-            }}
-          />
-        ))}
-      </Tabs>
+        <Stack.Screen name="calendario" />
+        <Stack.Screen name="nueva" />
+        <Stack.Screen name="finanzas" />
+      </Stack>
+
+      <View style={[styles.tabBar, {
+        height: 72 + insets.bottom,
+        paddingBottom: Math.max(insets.bottom, 8),
+      }]}>
+        {tabs.map((tab) => {
+          const selected = currentTab === tab.name;
+          return (
+            <Pressable
+              key={tab.name}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              accessibilityLabel={tab.title}
+              onPress={() => openTab(tab.name)}
+              style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}
+            >
+              <tab.icon
+                color={selected ? Colors.primary : Colors.text}
+                size={22}
+                strokeWidth={2}
+              />
+              <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{tab.title}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <Modal
         visible={menuVisible}
@@ -180,6 +202,29 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.white },
+  tabBar: {
+    minHeight: 72,
+    flexDirection: 'row',
+    backgroundColor: Colors.white,
+    borderTopColor: Colors.neutralBorder,
+    borderTopWidth: 1,
+    paddingTop: 8,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  tabLabel: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 11,
+    lineHeight: 16,
+    color: Colors.text,
+  },
+  tabLabelSelected: {
+    color: Colors.primary,
+  },
   navbar: {
     minHeight: 58,
     paddingHorizontal: 18,

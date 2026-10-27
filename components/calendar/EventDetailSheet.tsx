@@ -347,7 +347,7 @@ export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovem
             <View style={styles.half}><Input label="Adultos" value={adults} onChangeText={setAdults} keyboardType="numeric" /></View>
             <View style={styles.half}><Input label="Niños" value={children} onChangeText={setChildren} keyboardType="numeric" /></View>
           </View>
-          <Input label="Descripción / anotaciones" value={description} onChangeText={setDescription} multiline numberOfLines={4} />
+          <Input label="Descripción / anotaciones" value={description} onChangeText={setDescription} />
 
           <Text style={styles.sectionTitle}>Cliente</Text>
           <View style={styles.clientPanel}>
