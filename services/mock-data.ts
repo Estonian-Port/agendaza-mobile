@@ -2,6 +2,7 @@ import {
   Cliente,
   Empresa,
   EstadoEvento,
+  Gasto,
   EventoAgenda,
   Extra,
   MedioPago,
@@ -14,10 +15,11 @@ import {
 export const mockUsuarios: (Usuario & { password: string })[] = [
   {
     id: 1,
-    email: 'admin@agendaza.com',
-    password: 'admin123',
-    nombre: 'Lucía',
-    apellido: 'Fernández',
+    username: 'srodriguez',
+    email: '',
+    password: '',
+    nombre: 'Sebastian',
+    apellido: 'Rodriguez',
     rol: 'ADMINISTRADOR',
     empresaId: 1,
     empresaNombre: 'Salón Real Vista',
@@ -75,7 +77,7 @@ export const mockTipoEventos: TipoEvento[] = [
   {
     id: 1,
     nombre: 'CASAMIENTO',
-    duracion: 'COMPLETA',
+    duracion: 'LARGO',
     precioBase: 250000,
     listaServicio: [
       { id: 1, nombre: 'Salón principal' },
@@ -87,7 +89,7 @@ export const mockTipoEventos: TipoEvento[] = [
   {
     id: 2,
     nombre: 'CUMPLEAÑOS',
-    duracion: 'MEDIA',
+    duracion: 'MEDIO',
     precioBase: 120000,
     listaServicio: [
       { id: 1, nombre: 'Salón principal' },
@@ -98,7 +100,7 @@ export const mockTipoEventos: TipoEvento[] = [
   {
     id: 3,
     nombre: 'EMPRESARIAL',
-    duracion: 'CORTA',
+    duracion: 'CORTO',
     precioBase: 80000,
     listaServicio: [
       { id: 1, nombre: 'Salón principal' },
@@ -109,7 +111,7 @@ export const mockTipoEventos: TipoEvento[] = [
   {
     id: 4,
     nombre: 'FIESTA DE 15',
-    duracion: 'LARGA',
+    duracion: 'LARGO',
     precioBase: 180000,
     listaServicio: [
       { id: 1, nombre: 'Salón principal' },
@@ -121,10 +123,10 @@ export const mockTipoEventos: TipoEvento[] = [
 ];
 
 export const mockExtrasFijos: Extra[] = [
-  { id: 101, nombre: 'Pista de baile LED', tipoExtra: 'FIJO', empresaId: 1, precio: 35000, cantidad: 1, listaTipoEventoId: [1, 4] },
-  { id: 102, nombre: 'Fotocabina', tipoExtra: 'FIJO', empresaId: 1, precio: 18000, cantidad: 1, listaTipoEventoId: [1, 2, 4] },
-  { id: 103, nombre: 'Barra de tragos', tipoExtra: 'FIJO', empresaId: 1, precio: 28000, cantidad: 1, listaTipoEventoId: [1, 4] },
-  { id: 104, nombre: 'Living lounge', tipoExtra: 'FIJO', empresaId: 1, precio: 22000, cantidad: 1, listaTipoEventoId: [1, 2, 3, 4] },
+  { id: 101, nombre: 'Pista de baile LED', tipoExtra: 'EVENTO', empresaId: 1, precio: 35000, cantidad: 1, listaTipoEventoId: [1, 4] },
+  { id: 102, nombre: 'Fotocabina', tipoExtra: 'EVENTO', empresaId: 1, precio: 18000, cantidad: 1, listaTipoEventoId: [1, 2, 4] },
+  { id: 103, nombre: 'Barra de tragos', tipoExtra: 'EVENTO', empresaId: 1, precio: 28000, cantidad: 1, listaTipoEventoId: [1, 4] },
+  { id: 104, nombre: 'Living lounge', tipoExtra: 'EVENTO', empresaId: 1, precio: 22000, cantidad: 1, listaTipoEventoId: [1, 2, 3, 4] },
 ];
 
 export const mockExtrasVariables: Extra[] = [
@@ -194,6 +196,9 @@ export const mockEstadosEvento: EstadoEvento[] = [
 export const mockEstadosForNuevo: EstadoEvento[] = ['COTIZADO', 'RESERVADO', 'CONFIRMADO'];
 
 export const mockMediosDePago: MedioPago[] = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'MERCADO_PAGO', 'CHEQUE'];
+export const mockConceptosPago = ['INGRESO', 'SEÑA', 'SALDO', 'CUOTA'];
+export const mockTiposGasto = ['EVENTO', 'INSUMOS', 'MANTENIMIENTO', 'SERVICIOS', 'OTROS'];
+export const mockGastos: Gasto[] = [];
 
 const pagosBase: Array<Omit<Pago, 'id'>> = [
   { fecha: iso(addDays(-6), 12, 0), monto: 125000, medioPago: 'TRANSFERENCIA', concepto: 'INGRESO', descripcion: 'Seña casamiento Torres', esIngreso: true, eventoId: 1006, eventoNombre: 'Casamiento Torres', empresaId: 1, usuarioId: 2 },

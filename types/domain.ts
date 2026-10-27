@@ -4,7 +4,8 @@ export type Rol = 'ADMINISTRADOR' | 'ENCARGADO' | 'CLIENTE' | 'EMPLEADO';
 
 export interface Usuario {
   id: number;
-  email: string;
+  username?: string;
+  email?: string;
   nombre: string;
   apellido: string;
   rol: Rol;
@@ -19,10 +20,10 @@ export interface AuthSession {
   usuario: Usuario;
 }
 
-export type Duracion = 'CORTA' | 'MEDIA' | 'LARGA' | 'COMPLETA';
+export type Duracion = 'CORTO' | 'MEDIO' | 'LARGO';
 
 export type TipoExtra =
-  | 'FIJO'
+  | 'EVENTO'
   | 'VARIABLE_EVENTO'
   | 'TIPO_CATERING'
   | 'VARIABLE_CATERING';
@@ -38,6 +39,13 @@ export interface Extra extends GenericItem {
   precio: number;
   cantidad: number;
   listaTipoEventoId: number[];
+}
+
+export interface ExtraPrecioDTO {
+  id: number;
+  nombre: string;
+  tipoExtra: TipoExtra;
+  precio: number;
 }
 
 export interface TipoEvento extends GenericItem {
@@ -77,7 +85,7 @@ export interface Evento {
   fin: string;
   capacidadAdultos: number;
   capacidadNinos: number;
-  tipoEventoId: number;
+  tipoEventoId?: number;
   tipoEventoNombre?: string;
   empresaId: number;
   empresa?: string;
@@ -111,6 +119,7 @@ export interface EventoReservaDTO {
   extraOtro: number;
   extraOtroDescripcion?: string;
   precioTipoEvento: number;
+  extraOtroDescripcion?: string;
   listaExtra: Array<{
     id: number;
     nombre: string;
@@ -122,7 +131,10 @@ export interface EventoReservaDTO {
   }>;
   cateringOtro: number;
   cateringOtroDescripcion?: string;
-  cliente: Cliente;
+  cliente: Omit<Cliente, 'celular'> & {
+    celular?: string | number;
+    rol: 'CLIENTE';
+  };
   encargadoId?: number;
   estado: EstadoEvento;
   anotaciones?: string;
@@ -133,6 +145,7 @@ export interface EventoVer extends Evento {}
 export interface EventoAgenda {
   id: number;
   title: string;
+  codigo?: string;
   start: string; // ISO
   end: string;
   estado: EstadoEvento;
@@ -159,21 +172,48 @@ export interface EventoHora {
   fin: string;
 }
 
+export interface EventoHoraDTO {
+  id: number;
+  nombre: string;
+  codigo: string;
+  inicio: string;
+  fin: string;
+}
+
 export type MedioPago = 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA' | 'MERCADO_PAGO' | 'CHEQUE';
-export type ConceptoPago = 'INGRESO' | 'EGRESO' | 'SEÑA' | 'SALDO' | 'GASTO' | 'PROVEEDOR';
+export type ConceptoPago = 'INGRESO' | 'EGRESO' | 'SEÑA' | 'SALDO' | 'GASTO' | 'PROVEEDOR' | 'CUOTA' | string;
 
 export interface Pago {
   id: number;
   fecha: string; // ISO
   monto: number;
-  medioPago: MedioPago;
+  medioPago?: MedioPago;
+  medioDePago?: string;
   concepto: ConceptoPago;
   descripcion?: string;
-  esIngreso: boolean;
+  esIngreso?: boolean;
   eventoId?: number;
   eventoNombre?: string;
+  nombreEvento?: string;
+  codigo?: string;
+  fechaEvento?: string;
+  numeroCuota?: string;
   empresaId: number;
   usuarioId: number;
+}
+
+export interface Gasto {
+  id: number;
+  monto: number;
+  tipoGasto: string;
+  descripcion: string;
+  fecha: string;
+  empresaId: number;
+  usuarioId: number;
+  medioDePago?: string;
+  codigoEvento?: string;
+  eventoId?: number;
+  nombreEvento?: string;
 }
 
 export interface PagoJSON {
@@ -192,7 +232,9 @@ export interface ResumenPagosMes {
   ingresos: number;
   egresos: number;
   balance: number;
-  cantidadMovimientos: number;
+  cantidadMovimientos?: number;
+  cantidadIngresos?: number;
+  cantidadEgresos?: number;
 }
 
 export interface CustomResponse<T> {

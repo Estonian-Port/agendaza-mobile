@@ -13,6 +13,7 @@ import {
   EventoCatering,
   EventoExtra,
   EventoHora,
+  EventoHoraDTO,
   EventoReservaDTO,
   EventoVer,
   EstadoEvento,
@@ -29,6 +30,15 @@ import { getEmpresaActivaId } from './empresa.service';
 const BASE = '/v1/eventos';
 
 export const eventoService = {
+  async getEventoIdByCodigo(codigo: string): Promise<number> {
+    if (USE_MOCK) {
+      const evento = mockAgenda.find((item) => `EVT-${item.id}`.toLowerCase() === codigo.trim().toLowerCase());
+      if (!evento) throw new Error('No se encontró un evento con ese código.');
+      return evento.id;
+    }
+    return apiGet<number>(`${BASE}/codigo/${encodeURIComponent(codigo)}/empresa/${getEmpresaActivaId()}`);
+  },
+
   async getEventoVer(eventoId: number): Promise<EventoVer> {
     if (USE_MOCK) {
       const item = mockAgenda.find((e) => e.id === eventoId);
@@ -60,7 +70,19 @@ export const eventoService = {
         listaExtraCateringVariable: [],
       };
     }
-    return apiGet<EventoVer>(`${BASE}/${eventoId}`);
+    const evento = await apiGet<EventoVer & { tipoEvento?: number | { id?: number } }>(`${BASE}/${eventoId}`);
+    const extras = evento.listaExtra ?? [];
+    const tipoEventoId = evento.tipoEventoId ?? (
+      typeof evento.tipoEvento === 'number' ? evento.tipoEvento : evento.tipoEvento?.id
+    );
+    return {
+      ...evento,
+      tipoEventoId,
+      listaExtra: extras.filter((extra) => extra.tipoExtra === 'EVENTO'),
+      listaExtraVariable: evento.listaExtraVariable ?? extras.filter((extra) => extra.tipoExtra === 'VARIABLE_EVENTO'),
+      listaExtraTipoCatering: evento.listaExtraTipoCatering ?? extras.filter((extra) => extra.tipoExtra === 'TIPO_CATERING'),
+      listaExtraCateringVariable: evento.listaExtraCateringVariable ?? extras.filter((extra) => extra.tipoExtra === 'VARIABLE_CATERING'),
+    };
   },
 
   async getAgenda(): Promise<EventoAgenda[]> {
@@ -98,7 +120,7 @@ export const eventoService = {
   },
 
   async getOcupacionDelDia(fechaEvento: string): Promise<string[]> {
-    if (USE_MOCK) return mockEventosOcupacion[fechaEvento] ?? [];
+    if (USE_MOCK) return mockEventosOcupacion[fechaEvento.slice(0, 10)] ?? [];
     return apiGet<string[]>(`${BASE}/empresa/${getEmpresaActivaId()}/ocupacion-del-dia`, { fechaEvento });
   },
 
@@ -132,13 +154,23 @@ export const eventoService = {
     return apiGet<EstadoEvento[]>(`${BASE}/estados/nuevo`);
   },
 
-  async save(reserva: EventoReservaDTO): Promise<CustomResponse<number>> {
+  async save(reserva: EventoReservaDTO): Promise<CustomResponse<EventoHoraDTO>> {
     if (USE_MOCK) {
       const newId = 9000 + Math.floor(Math.random() * 1000);
-      return { data: newId, message: 'Evento creado (mock)', status: 200 };
+      return {
+        data: {
+          id: newId,
+          nombre: reserva.nombre,
+          codigo: `EVT-${newId}`,
+          inicio: reserva.inicio,
+          fin: reserva.fin,
+        },
+        message: 'Evento creado (mock)',
+        status: 200,
+      };
     }
-    const res = await apiPost<EventoReservaDTO>(BASE, reserva);
-    return { data: res as unknown as number, message: 'Evento creado' };
+    const res = await apiPost<EventoHoraDTO>(BASE, reserva);
+    return { data: res, message: 'Evento creado' };
   },
 
   async deleteEvento(id: number): Promise<void> {

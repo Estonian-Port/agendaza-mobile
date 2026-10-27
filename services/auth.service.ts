@@ -1,22 +1,97 @@
-import { apiGet, USE_MOCK, saveToken, clearToken, getToken } from './api-client';
+import api, { apiGet, USE_MOCK, saveToken, clearToken, getToken } from './api-client';
 import { AuthSession, Cliente, Usuario } from '@/types/domain';
-import { mockClientes, mockUsuarios } from './mock-data';
+import { mockClientes } from './mock-data';
+import axios from 'axios';
 
-const BASE = '/v1/auth';
+interface UsuarioMeDTO {
+  id: number;
+  username?: string;
+  email?: string;
+  nombre?: string;
+  apellido?: string;
+  rol?: string;
+  cargo?: string | { nombre?: string };
+  empresaId?: number;
+  empresaNombre?: string;
+}
+
+interface UsuarioClienteDTO {
+  id: number;
+  nombre: string;
+  apellido: string;
+  email?: string;
+  celular?: string | number;
+}
+
+function mapUsuarioCliente(usuario: UsuarioClienteDTO): Cliente {
+  return {
+    id: usuario.id,
+    nombre: usuario.nombre,
+    apellido: usuario.apellido,
+    email: usuario.email,
+    celular: usuario.celular === undefined ? undefined : String(usuario.celular),
+  };
+}
+
+function mapRol(value: unknown): Usuario['rol'] {
+  const rol = String(typeof value === 'object' && value !== null && 'nombre' in value
+    ? value.nombre
+    : value ?? '').toUpperCase();
+  if (rol.includes('ADMIN')) return 'ADMINISTRADOR';
+  if (rol.includes('ENCARGADO')) return 'ENCARGADO';
+  if (rol.includes('CLIENTE')) return 'CLIENTE';
+  return 'EMPLEADO';
+}
+
+function getLoginErrorMessage(error: unknown): string | null {
+  if (!axios.isAxiosError(error)) return null;
+  const body: unknown = error.response?.data;
+  if (typeof body === 'string' && body.trim()) return body;
+  if (body && typeof body === 'object') {
+    const response = body as Record<string, unknown>;
+    const message = response.message ?? response.error ?? response.mensaje;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return null;
+}
 
 export const authService = {
-  async login(email: string, password: string): Promise<AuthSession> {
-    if (USE_MOCK) {
-      const user = mockUsuarios.find((u) => u.email === email && u.password === password);
-      if (!user) throw new Error('Credenciales inválidas');
-      const { password: _pw, ...usuario } = user;
-      const token = `mock-token-${user.id}-${Date.now()}`;
+  async login(username: string, password: string): Promise<AuthSession> {
+    let token: string | undefined;
+    try {
+      const response = await api.post('/login', { username, password });
+      const authorization = response.headers.authorization as string | undefined;
+      token = authorization?.replace(/^Bearer\s+/i, '').trim();
+      if (!token) throw new Error('El backend no retornó un token de autenticación.');
+
       await saveToken(token);
+      const usuarioDTO = await apiGet<UsuarioMeDTO>('/v1/usuarios/me');
+      if (!usuarioDTO || !Number.isFinite(Number(usuarioDTO.id))) {
+        throw new Error('El backend no retornó un usuario válido.');
+      }
+
+      const usuario: Usuario = {
+        id: Number(usuarioDTO.id),
+        username: usuarioDTO.username ?? username,
+        email: usuarioDTO.email,
+        nombre: usuarioDTO.nombre ?? '',
+        apellido: usuarioDTO.apellido ?? '',
+        rol: mapRol(usuarioDTO.rol ?? usuarioDTO.cargo),
+        empresaId: usuarioDTO.empresaId ?? 0,
+        empresaNombre: usuarioDTO.empresaNombre,
+      };
       return { token, usuario };
+    } catch (error) {
+      await clearToken();
+      const message = getLoginErrorMessage(error);
+      if (message) throw new Error(message);
+      throw error;
     }
-    const res = await apiGet<AuthSession>(`${BASE}/login`, { email, password });
-    await saveToken(res.token);
-    return res;
+  },
+
+  async getRolByEmpresaAndUsuario(usuarioId: number, empresaId: number): Promise<Usuario['rol']> {
+    const cargo = await apiGet<unknown>(`/v1/cargos/${usuarioId}/empresa/${empresaId}`);
+    return mapRol(cargo);
   },
 
   async logout(): Promise<void> {
@@ -34,7 +109,8 @@ export const authService = {
       return found ?? null;
     }
     try {
-      return await apiGet<Cliente>(`${BASE}/cliente/celular`, { celular });
+      const usuario = await apiGet<UsuarioClienteDTO>('/v1/usuarios/celular', { celular });
+      return mapUsuarioCliente(usuario);
     } catch {
       return null;
     }
@@ -46,7 +122,8 @@ export const authService = {
       return found ?? null;
     }
     try {
-      return await apiGet<Cliente>(`${BASE}/cliente/email`, { email });
+      const usuario = await apiGet<UsuarioClienteDTO>('/v1/usuarios/email', { email });
+      return mapUsuarioCliente(usuario);
     } catch {
       return null;
     }

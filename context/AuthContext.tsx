@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { authService } from '@/services/auth.service';
 import { empresaService, setEmpresaActivaId } from '@/services/empresa.service';
+import { USE_MOCK } from '@/services/api-client';
 import { Empresa, Rol, Usuario } from '@/types/domain';
 
 interface AuthContextValue {
@@ -9,8 +10,8 @@ interface AuthContextValue {
   agendas: Empresa[];
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<'single' | 'multiple' | false>;
-  selectAgenda: (agenda: Empresa) => void;
+  login: (username: string, password: string) => Promise<'single' | 'multiple' | false>;
+  selectAgenda: (agenda: Empresa) => Promise<void>;
   logout: () => Promise<void>;
   canAccess: (roles: Rol[]) => boolean;
 }
@@ -24,25 +25,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     setError(null);
     try {
-      const session = await authService.login(email, password);
+      const session = await authService.login(username, password);
       const assigned = await empresaService.getAllByUsuarioId(session.usuario.id);
-      const available = assigned.length > 0
-        ? assigned
-        : [{ id: session.usuario.empresaId, nombre: session.usuario.empresaNombre ?? 'Empresa' }];
-      setAgendas(available);
+      if (assigned.length === 0) {
+        throw new Error('El usuario no tiene agendas asignadas.');
+      }
+      const rol = USE_MOCK
+        ? session.usuario.rol
+        : await authService.getRolByEmpresaAndUsuario(session.usuario.id, assigned[0].id);
+      setAgendas(assigned);
       setToken(session.token);
-      if (available.length === 1) {
-        const agenda = available[0];
+      if (assigned.length === 1) {
+        const agenda = assigned[0];
         setEmpresaActivaId(agenda.id);
-        setUsuario({ ...session.usuario, empresaId: agenda.id, empresaNombre: agenda.nombre });
+        setUsuario({ ...session.usuario, rol, empresaId: agenda.id, empresaNombre: agenda.nombre });
         return 'single';
       }
       setEmpresaActivaId(null);
-      setUsuario(session.usuario);
+      setUsuario({ ...session.usuario, rol });
       return 'multiple';
     } catch (e) {
       await authService.logout();
@@ -57,13 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const selectAgenda = useCallback((agenda: Empresa) => {
+  const selectAgenda = useCallback(async (agenda: Empresa) => {
     if (!agendas.some((item) => item.id === agenda.id)) return;
-    setEmpresaActivaId(agenda.id);
-    setUsuario((current) => current
-      ? { ...current, empresaId: agenda.id, empresaNombre: agenda.nombre }
-      : current);
-  }, [agendas]);
+    if (!usuario) return;
+    setLoading(true);
+    try {
+      const rol = USE_MOCK
+        ? usuario.rol
+        : await authService.getRolByEmpresaAndUsuario(usuario.id, agenda.id);
+      setEmpresaActivaId(agenda.id);
+      setUsuario({ ...usuario, rol, empresaId: agenda.id, empresaNombre: agenda.nombre });
+    } finally {
+      setLoading(false);
+    }
+  }, [agendas, usuario]);
 
   const logout = useCallback(async () => {
     await authService.logout();

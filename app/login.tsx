@@ -7,13 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  Alert,
   Image,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
-import { Lock, Mail, Eye, EyeOff } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Lock, UserRound, Eye, EyeOff } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
-import { Colors, Radius, Shadow } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -21,25 +20,20 @@ import { Button } from '@/components/ui/Button';
 export default function LoginScreen() {
   const router = useRouter();
   const { login, loading, error } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState(false);
 
   const handleLogin = async () => {
     setTouched(true);
-    if (!email || !password) return;
-    const result = await login(email, password);
+    if (!username || !password) return;
+    const result = await login(username, password);
     if (result === 'single') {
       router.replace('/(tabs)/calendario');
     } else if (result === 'multiple') {
       router.replace('/seleccionar-agenda');
     }
-  };
-
-  const fillDemo = (e: string, p: string) => {
-    setEmail(e);
-    setPassword(p);
   };
 
   return (
@@ -62,14 +56,13 @@ export default function LoginScreen() {
 
           <View style={styles.inputWrap}>
             <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="ejemplo@agendaza.com"
-              keyboardType="email-address"
-              error={!email && touched ? 'El email es requerido' : ''}
+              label="Nombre de usuario"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Ingrese su nombre de usuario"
+              error={!username && touched ? 'El nombre de usuario es requerido' : ''}
               touched={touched}
-              prefix={<Mail size={18} color={Colors.text} />}
+              prefix={<UserRound size={18} color={Colors.text} />}
             />
           </View>
 
@@ -107,31 +100,10 @@ export default function LoginScreen() {
           />
         </Card>
 
-        <View style={styles.demoWrap}>
-          <Text style={styles.demoTitle}>Cuentas de prueba (Mock Mode)</Text>
-          <View style={styles.demoRow}>
-            {demoAccounts.map((acc) => (
-              <Pressable
-                key={acc.email}
-                style={({ pressed }) => [styles.demoChip, pressed && styles.demoChipPressed]}
-                onPress={() => fillDemo(acc.email, acc.password)}
-              >
-                <Text style={styles.demoChipLabel}>{acc.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const demoAccounts = [
-  { label: 'Admin', email: 'admin@agendaza.com', password: 'admin123' },
-  { label: 'Encargado', email: 'encargado@agendaza.com', password: 'encargado123' },
-  { label: 'Cliente', email: 'cliente@agendaza.com', password: 'cliente123' },
-  { label: 'Empleado', email: 'empleado@agendaza.com', password: 'empleado123' },
-];
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Colors.neutralBg },
@@ -168,35 +140,4 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   submitBtn: { marginTop: 12 },
-  demoWrap: {
-    marginTop: 24,
-  },
-  demoTitle: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 13,
-    color: Colors.text,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  demoRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  demoChip: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: Colors.borderSoft,
-    ...Shadow.soft,
-  },
-  demoChipPressed: { opacity: 0.8 },
-  demoChipLabel: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 13,
-    color: Colors.primary,
-  },
 });

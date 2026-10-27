@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
 import { Building2, ChevronRight, LogOut } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/ui/Card';
 import { Colors, Radius } from '@/constants/theme';
@@ -11,14 +11,26 @@ export default function SeleccionarAgendaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { usuario, agendas, selectAgenda, logout } = useAuth();
+  const [selecting, setSelecting] = useState(false);
 
   if (!usuario) return <Redirect href="/login" />;
 
   const sortedAgendas = [...agendas].sort((a, b) => a.id - b.id);
 
-  const handleSelect = (agenda: (typeof sortedAgendas)[number]) => {
-    selectAgenda(agenda);
-    router.replace('/(tabs)/calendario');
+  const handleSelect = async (agenda: (typeof sortedAgendas)[number]) => {
+    if (selecting) return;
+    setSelecting(true);
+    try {
+      await selectAgenda(agenda);
+      router.replace('/(tabs)/calendario');
+    } catch (error) {
+      Alert.alert(
+        'No se pudo seleccionar la agenda',
+        error instanceof Error ? error.message : 'Ocurrió un error inesperado.',
+      );
+    } finally {
+      setSelecting(false);
+    }
   };
 
   return (
@@ -37,7 +49,7 @@ export default function SeleccionarAgendaScreen() {
         {sortedAgendas.map((agenda, index) => (
           <Card
             key={agenda.id}
-            onPress={() => handleSelect(agenda)}
+            onPress={() => { void handleSelect(agenda); }}
             radius="panel"
             shadow="soft"
             style={styles.agendaCard}

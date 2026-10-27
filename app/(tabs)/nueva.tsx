@@ -17,6 +17,8 @@ import {
   Check,
   CircleCheck,
   CircleX,
+  ChevronDown,
+  ChevronUp,
   Search,
 } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
@@ -31,21 +33,24 @@ import { useAuth } from '@/context/AuthContext';
 import { authService } from '@/services/auth.service';
 import { empresaService } from '@/services/empresa.service';
 import { eventoService } from '@/services/evento.service';
+import { extraService } from '@/services/extra.service';
+import { tipoEventoService } from '@/services/tipo-evento.service';
 import {
   Cliente,
   Duracion,
   EstadoEvento,
+  EventoHoraDTO,
   EventoReservaDTO,
   Extra,
+  GenericItem,
   TipoEvento,
 } from '@/types/domain';
 
 const STEPS = ['Tipo', 'Evento', 'Cotización', 'Catering', 'Contacto'];
 const DURATIONS: { label: string; value: Duracion }[] = [
-  { label: 'Corta', value: 'CORTA' },
-  { label: 'Media', value: 'MEDIA' },
-  { label: 'Larga', value: 'LARGA' },
-  { label: 'Completa', value: 'COMPLETA' },
+  { label: 'Corto', value: 'CORTO' },
+  { label: 'Medio', value: 'MEDIO' },
+  { label: 'Largo', value: 'LARGO' },
 ];
 const EVENT_STATUSES: EstadoEvento[] = ['COTIZADO', 'RESERVADO', 'CONFIRMADO'];
 const TIMES: SelectOption[] = Array.from({ length: 48 }, (_, index) => {
@@ -65,6 +70,8 @@ type ReservationValues = {
   horaFin: string;
   extrasFijos: number[];
   extrasVariables: Record<number, number>;
+  extraOtro: string;
+  extraOtroDescripcion: string;
   cateringActivo: boolean;
   tiposCatering: number[];
   extrasCatering: number[];
@@ -86,6 +93,8 @@ const initialValues: ReservationValues = {
   horaFin: '',
   extrasFijos: [],
   extrasVariables: {},
+  extraOtro: '0',
+  extraOtroDescripcion: '',
   cateringActivo: false,
   tiposCatering: [],
   extrasCatering: [],
@@ -102,6 +111,15 @@ function formatCurrency(value: number) {
     currency: 'ARS',
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 function makeDateTime(date: string, time: string) {
@@ -147,15 +165,26 @@ export default function NuevaReservaScreen() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState('');
+  const [extrasLoading, setExtrasLoading] = useState(false);
+  const [extrasError, setExtrasError] = useState('');
+  const [eventTypePrice, setEventTypePrice] = useState<number | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState('');
+  const [includedServices, setIncludedServices] = useState<GenericItem[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesError, setServicesError] = useState('');
+  const [servicesExpanded, setServicesExpanded] = useState(false);
   const [tiposEvento, setTiposEvento] = useState<TipoEvento[]>([]);
   const [extrasFijos, setExtrasFijos] = useState<Extra[]>([]);
   const [extrasVariables, setExtrasVariables] = useState<Extra[]>([]);
   const [tiposCatering, setTiposCatering] = useState<Extra[]>([]);
   const [extrasCatering, setExtrasCatering] = useState<Extra[]>([]);
   const [availability, setAvailability] = useState<'idle' | 'checking' | 'available' | 'busy' | 'error'>('idle');
+  const [dayEvents, setDayEvents] = useState<string[]>([]);
+  const [dayEventsError, setDayEventsError] = useState(false);
   const [clientSearch, setClientSearch] = useState<'idle' | 'loading' | 'found' | 'not-found' | 'error'>('idle');
   const [submitError, setSubmitError] = useState('');
-  const [savedId, setSavedId] = useState<number | null>(null);
+  const [savedEvent, setSavedEvent] = useState<EventoHoraDTO | null>(null);
 
   const formik = useFormik<ReservationValues>({
     initialValues,
@@ -182,14 +211,12 @@ export default function NuevaReservaScreen() {
           ? [
               ...tiposCatering
                 .filter((extra) => values.tiposCatering.includes(extra.id))
-                .map((extra) => ({
-                  ...extra,
-                  cantidad: values.capacidadAdultos + values.capacidadNinos,
-                })),
+                .map((extra) => ({ ...extra, cantidad: extra.cantidad })),
               ...extrasCatering.filter((extra) => values.extrasCatering.includes(extra.id)),
             ]
           : []),
       ];
+      const celularDigits = values.cliente.celular?.replace(/\D/g, '') ?? '';
 
       const payload: EventoReservaDTO = {
         id: 0,
@@ -201,24 +228,28 @@ export default function NuevaReservaScreen() {
         fin: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}T${values.horaFin}:00`,
         tipoEventoId: selectedTipo.id,
         empresaId: usuario.empresaId,
-        extraOtro: 0,
-        precioTipoEvento: selectedTipo.precioBase,
+        extraOtro: Number(values.extraOtro || 0),
+        extraOtroDescripcion: values.extraOtroDescripcion.trim(),
+        precioTipoEvento: eventTypePrice ?? selectedTipo.precioBase,
         listaExtra: selectedExtras,
         cateringOtro: values.cateringActivo ? Number(values.cateringOtro || 0) : 0,
-        cateringOtroDescripcion: values.cateringActivo ? values.cateringOtroDescripcion.trim() : undefined,
+        cateringOtroDescripcion: values.cateringActivo ? values.cateringOtroDescripcion.trim() : '',
         cliente: {
           ...values.cliente,
+          id: values.cliente.id ?? 0,
+          rol: 'CLIENTE',
+          celular: celularDigits ? Number(celularDigits) : undefined,
           nombre: values.cliente.nombre.trim(),
           apellido: values.cliente.apellido.trim(),
         },
         encargadoId: usuario.id,
         estado: values.estado,
-        anotaciones: values.anotaciones.trim() || undefined,
+        anotaciones: values.anotaciones.trim(),
       };
 
       try {
         const response = await eventoService.save(payload);
-        setSavedId(response.data);
+        setSavedEvent(response.data);
       } catch (error) {
         setSubmitError(error instanceof Error ? error.message : 'No se pudo guardar la reserva.');
       }
@@ -227,25 +258,24 @@ export default function NuevaReservaScreen() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      empresaService.getTiposEvento(),
-      empresaService.getExtrasFijos(),
-      empresaService.getExtrasVariables(),
-      empresaService.getTiposCatering(),
-      empresaService.getExtrasCatering(),
-    ])
-      .then(([tipos, fijos, variables, catering, extras]) => {
+    const duration = formik.values.duration;
+    if (!duration) {
+      setTiposEvento([]);
+      setCatalogLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setCatalogLoading(true);
+    setCatalogError('');
+    setTiposEvento([]);
+    void formik.setFieldValue('tipoEventoId', '', false);
+    empresaService.getTiposEvento(duration)
+      .then((tipos) => {
         if (!active) return;
         setTiposEvento(tipos);
-        const firstDuration = DURATIONS.find((duration) => tipos.some((tipo) => tipo.duracion === duration.value));
-        const selectedDuration = firstDuration?.value ?? DURATIONS[0].value;
-        const firstTipo = tipos.find((tipo) => tipo.duracion === selectedDuration);
-        void formik.setFieldValue('duration', selectedDuration, false);
-        if (firstTipo) void formik.setFieldValue('tipoEventoId', firstTipo.id, false);
-        setExtrasFijos(fijos);
-        setExtrasVariables(variables);
-        setTiposCatering(catering);
-        setExtrasCatering(extras);
+        if (tipos.length > 0) void formik.setFieldValue('tipoEventoId', tipos[0].id, false);
       })
       .catch(() => {
         if (active) setCatalogError('No se pudieron cargar las opciones de reserva.');
@@ -256,13 +286,128 @@ export default function NuevaReservaScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [formik.values.duration]);
+
+  useEffect(() => {
+    let active = true;
+    const tipoEventoId = formik.values.tipoEventoId;
+    if (tipoEventoId === '') {
+      setIncludedServices([]);
+      setServicesLoading(false);
+      setServicesError('');
+      return () => {
+        active = false;
+      };
+    }
+
+    setIncludedServices([]);
+    setServicesLoading(true);
+    setServicesError('');
+    tipoEventoService.getServiciosIncluidos(tipoEventoId)
+      .then((services) => {
+        if (active) setIncludedServices(services);
+      })
+      .catch(() => {
+        if (active) setServicesError('No se pudieron cargar los servicios incluidos.');
+      })
+      .finally(() => {
+        if (active) setServicesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [formik.values.tipoEventoId]);
+
+  useEffect(() => {
+    let active = true;
+    const { fecha, tipoEventoId } = formik.values;
+    const tipo = tiposEvento.find((item) => item.id === tipoEventoId);
+    if (!fecha || tipoEventoId === '' || !tipo) {
+      setEventTypePrice(tipo?.precioBase ?? null);
+      setPriceLoading(false);
+      setPriceError('');
+      return () => {
+        active = false;
+      };
+    }
+
+    setPriceLoading(true);
+    setPriceError('');
+    tipoEventoService.getPrecioPorFecha(tipoEventoId, fecha)
+      .then((price) => {
+        if (active) setEventTypePrice(price);
+      })
+      .catch(() => {
+        if (active) setPriceError('No se pudo consultar el precio del tipo de evento para esta fecha.');
+      })
+      .finally(() => {
+        if (active) setPriceLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [formik.values.fecha, formik.values.tipoEventoId, tiposEvento]);
+
+  useEffect(() => {
+    let active = true;
+    const { fecha, tipoEventoId } = formik.values;
+    if (!fecha || tipoEventoId === '') {
+      setExtrasFijos([]);
+      setExtrasVariables([]);
+      setTiposCatering([]);
+      setExtrasCatering([]);
+      setExtrasLoading(false);
+      setExtrasError('');
+      return () => {
+        active = false;
+      };
+    }
+
+    setExtrasLoading(true);
+    setExtrasError('');
+    setExtrasFijos([]);
+    setExtrasVariables([]);
+    setTiposCatering([]);
+    setExtrasCatering([]);
+    void formik.setFieldValue('extrasFijos', [], false);
+    void formik.setFieldValue('extrasVariables', {}, false);
+    void formik.setFieldValue('tiposCatering', [], false);
+    void formik.setFieldValue('extrasCatering', [], false);
+
+    Promise.all([
+      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'EVENTO'),
+      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'VARIABLE_EVENTO'),
+      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'TIPO_CATERING'),
+      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'VARIABLE_CATERING'),
+    ])
+      .then(([fijos, variables, catering, extras]) => {
+        if (!active) return;
+        setExtrasFijos(fijos);
+        setExtrasVariables(variables);
+        setTiposCatering(catering);
+        setExtrasCatering(extras);
+      })
+      .catch(() => {
+        if (active) setExtrasError('No se pudieron cargar los extras para el tipo de evento y la fecha seleccionados.');
+      })
+      .finally(() => {
+        if (active) setExtrasLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [formik.values.fecha, formik.values.tipoEventoId]);
 
   useEffect(() => {
     let active = true;
     const { fecha, horaInicio, horaFin } = formik.values;
     if (!fecha || !horaInicio || !horaFin) {
       setAvailability('idle');
+      setDayEvents([]);
+      setDayEventsError(false);
       return () => {
         active = false;
       };
@@ -273,10 +418,27 @@ export default function NuevaReservaScreen() {
     if (hasta <= desde) hasta.setDate(hasta.getDate() + 1);
     const hastaDateTime = `${hasta.getFullYear()}-${String(hasta.getMonth() + 1).padStart(2, '0')}-${String(hasta.getDate()).padStart(2, '0')}T${horaFin}:00`;
     setAvailability('checking');
+    setDayEvents([]);
+    setDayEventsError(false);
     eventoService
       .getHorarioDisponible(makeDateTime(fecha, horaInicio), hastaDateTime)
-      .then((available) => {
-        if (active) setAvailability(available ? 'available' : 'busy');
+      .then(async (available) => {
+        if (!active) return;
+        if (available) {
+          setAvailability('available');
+          return;
+        }
+
+        try {
+          const events = await eventoService.getOcupacionDelDia(`${fecha}T00:00:00`);
+          if (!active) return;
+          setDayEvents(events);
+          setAvailability('busy');
+        } catch {
+          if (!active) return;
+          setDayEventsError(true);
+          setAvailability('busy');
+        }
       })
       .catch(() => {
         if (active) setAvailability('error');
@@ -288,10 +450,6 @@ export default function NuevaReservaScreen() {
   }, [formik.values.fecha, formik.values.horaInicio, formik.values.horaFin]);
 
   const selectedTipo = tiposEvento.find((tipo) => tipo.id === formik.values.tipoEventoId);
-  const eventTypesByDuration = useMemo(
-    () => tiposEvento.filter((tipo) => !formik.values.duration || tipo.duracion === formik.values.duration),
-    [tiposEvento, formik.values.duration],
-  );
   const guestCount = formik.values.capacidadAdultos + formik.values.capacidadNinos;
   const budget = useMemo(() => {
     const fixedTotal = extrasFijos
@@ -310,7 +468,7 @@ export default function NuevaReservaScreen() {
           .reduce((sum, extra) => sum + extra.precio * extra.cantidad, 0) +
         Number(formik.values.cateringOtro || 0) * guestCount
       : 0;
-    return (selectedTipo?.precioBase ?? 0) + fixedTotal + variableTotal + cateringTotal;
+    return (eventTypePrice ?? selectedTipo?.precioBase ?? 0) + fixedTotal + variableTotal + Number(formik.values.extraOtro || 0) + cateringTotal;
   }, [
     extrasCatering,
     extrasFijos,
@@ -320,8 +478,10 @@ export default function NuevaReservaScreen() {
     formik.values.extrasCatering,
     formik.values.extrasFijos,
     formik.values.extrasVariables,
+    formik.values.extraOtro,
     formik.values.tiposCatering,
     guestCount,
+    eventTypePrice,
     selectedTipo?.precioBase,
     tiposCatering,
   ]);
@@ -374,6 +534,7 @@ export default function NuevaReservaScreen() {
 
   const goNext = async () => {
     if (await markInvalidFields()) return;
+    if (priceStepBlocked) return;
     if (step === 1 && (availability === 'checking' || availability === 'busy')) return;
     setStep((current) => Math.min(current + 1, STEPS.length - 1));
   };
@@ -383,7 +544,9 @@ export default function NuevaReservaScreen() {
     void formik.submitForm();
   };
   const stepHasErrors = Object.keys(getStepErrors(formik.values, step)).length > 0;
-  const actionFeedbackDisabled = stepHasErrors || catalogLoading || !!catalogError || (step === 1 && (availability === 'busy' || availability === 'checking'));
+  const extrasStepBlocked = (step === 2 || step === 3) && (extrasLoading || !!extrasError);
+  const priceStepBlocked = step >= 1 && (!!priceError || priceLoading);
+  const actionFeedbackDisabled = stepHasErrors || catalogLoading || !!catalogError || extrasStepBlocked || priceStepBlocked || (step === 1 && (availability === 'busy' || availability === 'checking'));
 
   const dateLabel = formik.values.fecha
     ? new Date(`${formik.values.fecha}T12:00:00`).toLocaleDateString('es-AR', {
@@ -394,18 +557,32 @@ export default function NuevaReservaScreen() {
       })
     : 'Elegir fecha';
 
-  if (savedId !== null) {
+  if (savedEvent !== null) {
     return (
       <View style={styles.successScreen}>
         <View style={styles.successIcon}><Check color={Colors.white} size={30} strokeWidth={3} /></View>
         <Text style={styles.successTitle}>Reserva creada</Text>
         <Text style={styles.successText}>La reserva quedó registrada correctamente.</Text>
-        <Text style={styles.successCode}>N.º {savedId}</Text>
+        <Text style={styles.successCode}>Código: {savedEvent.codigo}</Text>
+        <View style={styles.successDetails}>
+          <View style={styles.successDetailRow}>
+            <Text style={styles.successDetailLabel}>Nombre:</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.successDetailValue}>{savedEvent.nombre}</Text>
+          </View>
+          <View style={styles.successDetailRow}>
+            <Text style={styles.successDetailLabel}>Inicio:</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.successDetailValue}>{formatDateTime(savedEvent.inicio)}</Text>
+          </View>
+          <View style={styles.successDetailRow}>
+            <Text style={styles.successDetailLabel}>Fin:</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.successDetailValue}>{formatDateTime(savedEvent.fin)}</Text>
+          </View>
+        </View>
         <Button label="Crear otra reserva" onPress={() => {
-          setSavedId(null);
+          setSavedEvent(null);
           setStep(0);
           formik.resetForm();
-        }} />
+        }} style={styles.successButton} />
       </View>
     );
   }
@@ -467,17 +644,14 @@ export default function NuevaReservaScreen() {
                     options={DURATIONS}
                     error={!!formik.errors.duration && !!formik.touched.duration}
                     onChange={(value) => {
-                      const duration = value as Duracion;
-                      void formik.setFieldValue('duration', duration);
-                      const firstTipo = tiposEvento.find((tipo) => tipo.duracion === duration);
-                      void formik.setFieldValue('tipoEventoId', firstTipo?.id ?? '');
+                      void formik.setFieldValue('duration', value as Duracion);
                     }}
                     placeholder="Seleccionar duración"
                   />
                   <Select
                     label="Tipo de evento"
                     value={formik.values.tipoEventoId}
-                    options={eventTypesByDuration.map((tipo) => ({ label: tipo.nombre, value: tipo.id }))}
+                    options={tiposEvento.map((tipo) => ({ label: tipo.nombre, value: tipo.id }))}
                     error={!!formik.errors.tipoEventoId && !!formik.touched.tipoEventoId}
                     onChange={(value) => void formik.setFieldValue('tipoEventoId', Number(value))}
                     placeholder="Seleccionar tipo"
@@ -489,6 +663,36 @@ export default function NuevaReservaScreen() {
                   <View style={styles.capacitySummary}>
                     <Text style={styles.capacitySummaryLabel}>Capacidad total</Text>
                     <Text style={styles.capacitySummaryValue}>{guestCount} personas</Text>
+                  </View>
+                  <View style={styles.servicesCard}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: servicesExpanded }}
+                      onPress={() => setServicesExpanded((expanded) => !expanded)}
+                      style={styles.servicesToggle}
+                    >
+                      <Text style={styles.servicesToggleLabel}>Servicios incluidos</Text>
+                      {servicesLoading ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : servicesExpanded ? (
+                        <ChevronUp size={18} color={Colors.primary} />
+                      ) : (
+                        <ChevronDown size={18} color={Colors.primary} />
+                      )}
+                    </Pressable>
+                    {servicesExpanded && (
+                      <View style={styles.servicesList}>
+                        {servicesError ? (
+                          <Text style={styles.inlineError}>{servicesError}</Text>
+                        ) : includedServices.length > 0 ? (
+                          includedServices.map((service) => (
+                            <Text key={service.id} style={styles.serviceItem}>{service.nombre}</Text>
+                          ))
+                        ) : !servicesLoading ? (
+                          <Text style={styles.serviceEmpty}>No hay servicios incluidos.</Text>
+                        ) : null}
+                      </View>
+                    )}
                   </View>
                   {(formik.errors.duration || formik.errors.tipoEventoId) && (
                     <Text style={styles.inlineError}>{formik.errors.duration || formik.errors.tipoEventoId}</Text>
@@ -532,6 +736,20 @@ export default function NuevaReservaScreen() {
                       </Text>
                     </View>
                   )}
+                  {availability === 'busy' && (
+                    <View style={styles.dayEvents}>
+                      <Text style={styles.dayEventsTitle}>Ocupación del día</Text>
+                      {dayEventsError ? (
+                        <Text style={styles.dayEventEmpty}>No se pudieron cargar los eventos del día.</Text>
+                      ) : dayEvents.length > 0 ? (
+                        dayEvents.map((event, index) => (
+                          <Text key={`${event}-${index}`} style={styles.dayEvent}>{event}</Text>
+                        ))
+                      ) : (
+                        <Text style={styles.dayEventEmpty}>No se encontraron eventos para ese día.</Text>
+                      )}
+                    </View>
+                  )}
                   {(formik.touched.horaInicio && formik.errors.horaInicio || formik.touched.horaFin && formik.errors.horaFin) && (
                     <Text style={styles.inlineError}>{formik.errors.horaInicio || formik.errors.horaFin}</Text>
                   )}
@@ -541,7 +759,9 @@ export default function NuevaReservaScreen() {
               {step === 2 && (
                 <>
                   <Text style={styles.helperText}>Sumá servicios y extras para personalizar la propuesta.</Text>
-                  {selectedTipo && <PriceRow label={`Base · ${selectedTipo.nombre}`} price={selectedTipo.precioBase} prominent />}
+                  {extrasLoading && <ActivityIndicator color={Colors.primary} style={styles.loader} />}
+                  {!!extrasError && <Text style={styles.inlineError}>{extrasError}</Text>}
+                  {selectedTipo && <PriceRow label={`Base · ${selectedTipo.nombre}`} price={eventTypePrice ?? selectedTipo.precioBase} prominent />}
                   <Text style={styles.groupLabel}>EXTRAS FIJOS</Text>
                   {extrasFijos.filter((extra) => !selectedTipo || extra.listaTipoEventoId.length === 0 || extra.listaTipoEventoId.includes(selectedTipo.id)).map((extra) => (
                     <Checkbox
@@ -565,12 +785,29 @@ export default function NuevaReservaScreen() {
                       </View>
                     );
                   })}
+                  <Text style={styles.groupLabel}>OTRO EXTRA</Text>
+                  <Input
+                    label="Importe"
+                    value={formik.values.extraOtro}
+                    onChangeText={(value) => void formik.setFieldValue('extraOtro', value.replace(/[^\d.,]/g, '').replace(',', '.'))}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    prefix={<Text style={styles.currencyPrefix}>$</Text>}
+                  />
+                  <Input
+                    label="Descripción"
+                    value={formik.values.extraOtroDescripcion}
+                    onChangeText={(value) => void formik.setFieldValue('extraOtroDescripcion', value)}
+                    placeholder="Ej. Decoración especial"
+                  />
                   <PriceRow label="Presupuesto actualizado" price={budget} prominent />
                 </>
               )}
 
               {step === 3 && (
                 <>
+                  {extrasLoading && <ActivityIndicator color={Colors.primary} style={styles.loader} />}
+                  {!!extrasError && <Text style={styles.inlineError}>{extrasError}</Text>}
                   <Checkbox
                     label="Agregar servicio de catering"
                     description="Los menús se calculan por persona."
@@ -705,7 +942,7 @@ export default function NuevaReservaScreen() {
             <Button
               label="Continuar"
               onPress={goNext}
-              disabled={catalogLoading || !!catalogError}
+              disabled={catalogLoading || !!catalogError || extrasStepBlocked || priceStepBlocked}
               feedbackDisabled={actionFeedbackDisabled}
               icon={<ArrowRight size={17} color={actionFeedbackDisabled ? Colors.disabledText : Colors.white} />}
             />
@@ -714,8 +951,9 @@ export default function NuevaReservaScreen() {
               label="Crear reserva"
               onPress={() => void submitReservation()}
               loading={formik.isSubmitting}
-              feedbackDisabled={stepHasErrors}
-              icon={<Check size={17} color={stepHasErrors ? Colors.disabledText : Colors.white} />}
+              disabled={priceStepBlocked}
+              feedbackDisabled={stepHasErrors || priceStepBlocked}
+              icon={<Check size={17} color={stepHasErrors || priceStepBlocked ? Colors.disabledText : Colors.white} />}
             />
           )}
         </View>
@@ -804,18 +1042,31 @@ const styles = StyleSheet.create({
   capacitySummary: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#f1f5f3', borderRadius: 6, padding: 12, marginTop: 16 },
   capacitySummaryLabel: { color: Colors.text, fontFamily: 'Inter-Medium', fontSize: 13 },
   capacitySummaryValue: { color: Colors.textDark, fontFamily: 'Inter-Bold', fontSize: 13 },
+  servicesCard: { marginTop: 8, borderWidth: 1, borderColor: Colors.neutralBorder, borderRadius: 6, overflow: 'hidden' },
+  servicesToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 12 },
+  servicesToggleLabel: { color: Colors.textDark, fontFamily: 'Inter-SemiBold', fontSize: 13 },
+  servicesList: { gap: 8, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#f7f9f8', borderTopWidth: 1, borderColor: Colors.neutralBorder },
+  serviceItem: { color: Colors.textDark, fontFamily: 'Inter-Regular', fontSize: 13 },
+  serviceEmpty: { color: Colors.text, fontFamily: 'Inter-Regular', fontSize: 12 },
   fieldLabel: { color: Colors.textSoft, fontFamily: 'Inter-SemiBold', fontSize: 13, marginBottom: 6 },
   dateButton: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.neutralBorder, borderRadius: Radius.input, minHeight: 48, paddingHorizontal: 12, marginBottom: 12 },
   dateButtonError: { borderColor: Colors.danger },
   dateText: { flex: 1, color: Colors.textDark, fontFamily: 'Inter-Medium', fontSize: 13, textTransform: 'capitalize' },
   datePlaceholder: { color: Colors.disabledText },
   dateChange: { color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 12 },
+  eventPriceStatus: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -4, marginBottom: 14 },
+  eventPriceLabel: { color: Colors.text, fontFamily: 'Inter-Medium', fontSize: 12 },
+  eventPriceValue: { color: Colors.primary, fontFamily: 'Inter-Bold', fontSize: 13 },
   timeRow: { flexDirection: 'row', gap: 12 },
   timeField: { flex: 1 },
   availability: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 11, borderRadius: 6, backgroundColor: '#f4f5f4', marginTop: 2, marginBottom: 12 },
   availabilityGood: { backgroundColor: '#e9f5ef' },
   availabilityBad: { backgroundColor: '#fff0f0' },
   availabilityText: { color: Colors.textDark, fontFamily: 'Inter-Medium', fontSize: 12, flex: 1 },
+  dayEvents: { gap: 7, padding: 12, marginTop: -6, marginBottom: 12, borderWidth: 1, borderColor: Colors.neutralBorder, borderRadius: 6, backgroundColor: Colors.white },
+  dayEventsTitle: { color: Colors.textDark, fontFamily: 'Inter-SemiBold', fontSize: 12 },
+  dayEvent: { color: Colors.text, fontFamily: 'Inter-Regular', fontSize: 12, lineHeight: 18 },
+  dayEventEmpty: { color: Colors.text, fontFamily: 'Inter-Regular', fontSize: 12 },
   helperText: { color: Colors.text, fontFamily: 'Inter-Regular', fontSize: 13, lineHeight: 19, marginBottom: 14 },
   groupLabel: { color: Colors.textSoft, fontFamily: 'Inter-Bold', fontSize: 10, marginTop: 20, marginBottom: 9 },
   variableRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderColor: '#edf0ee' },
@@ -851,7 +1102,12 @@ const styles = StyleSheet.create({
   dateDone: { color: Colors.primary, fontFamily: 'Inter-Bold', fontSize: 14, padding: 4 },
   successScreen: { flex: 1, backgroundColor: Colors.tertiary, alignItems: 'center', justifyContent: 'center', padding: 28 },
   successIcon: { width: 58, height: 58, borderRadius: 29, backgroundColor: Colors.success, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  successButton: { alignSelf: 'center' },
   successTitle: { color: Colors.textDark, fontFamily: 'Inter-Bold', fontSize: 23 },
   successText: { color: Colors.text, fontFamily: 'Inter-Regular', fontSize: 14, marginTop: 8, textAlign: 'center' },
-  successCode: { color: Colors.primary, fontFamily: 'Inter-Bold', fontSize: 15, marginTop: 16, marginBottom: 22 },
+  successCode: { color: Colors.primary, fontFamily: 'Inter-Bold', fontSize: 15, marginTop: 16, marginBottom: 18 },
+  successDetails: { width: '100%', marginBottom: 22 },
+  successDetailRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 5 },
+  successDetailLabel: { color: Colors.text, fontFamily: 'Inter-Medium', fontSize: 12, textAlign: 'center' },
+  successDetailValue: { flexShrink: 1, color: Colors.textDark, fontFamily: 'Inter-SemiBold', fontSize: 14, textAlign: 'center' },
 });

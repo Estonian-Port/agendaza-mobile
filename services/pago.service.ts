@@ -1,7 +1,8 @@
 import { apiGet, apiPost, apiDelete, apiGetBlob, USE_MOCK } from './api-client';
 import { MedioPago, Pago, ResumenPagosMes } from '@/types/domain';
-import { getMockPagosMes, getMockResumenMes, mockMediosDePago, mockPagos } from './mock-data';
+import { getMockPagosMes, getMockResumenMes, mockConceptosPago, mockMediosDePago, mockPagos } from './mock-data';
 import { getEmpresaActivaId } from './empresa.service';
+import { eventoService } from './evento.service';
 
 const BASE = '/v1/pagos';
 
@@ -15,15 +16,13 @@ export const pagoService = {
     return apiGet<Pago>(`${BASE}/${id}`);
   },
 
-  async getAllByMes(mes: number, anio: number, pageNumber: number = 0, pageSize: number = 10): Promise<Pago[]> {
+  async getAllByMes(mes: number, anio: number): Promise<Pago[]> {
     if (USE_MOCK) {
-      return getMockPagosMes(mes, anio).slice(pageNumber * pageSize, (pageNumber + 1) * pageSize);
+      return getMockPagosMes(mes, anio);
     }
     return apiGet<Pago[]>(`${BASE}/empresa/${getEmpresaActivaId()}/mes`, {
       mes,
       anio,
-      page: pageNumber,
-      size: pageSize,
     });
   },
 
@@ -42,12 +41,41 @@ export const pagoService = {
     return apiGet<MedioPago[]>(`${BASE}/medios-de-pago`);
   },
 
-  async save(pago: Pago): Promise<Pago> {
+  async getConceptos(): Promise<string[]> {
+    if (USE_MOCK) return mockConceptosPago;
+    return apiGet<string[]>(`${BASE}/conceptos`);
+  },
+
+  async getEventoForSavePago(eventoId: number): Promise<Pago> {
+    if (USE_MOCK) {
+      const evento = await eventoService.getEventoVer(eventoId);
+      return {
+        id: 0,
+        monto: 0,
+        codigo: evento.codigo,
+        nombreEvento: evento.nombre,
+        fechaEvento: evento.inicio,
+        fecha: new Date().toISOString(),
+        medioDePago: mockMediosDePago[0],
+        concepto: 'INGRESO',
+        esIngreso: true,
+        eventoId,
+        empresaId: getEmpresaActivaId(),
+        usuarioId: 0,
+      };
+    }
+    return apiGet<Pago>(`${BASE}/evento/${eventoId}/datos-para-pago`);
+  },
+
+  async save(pago: Pago, usuarioId: number = pago.usuarioId): Promise<Pago> {
+    const payload = { ...pago, empresaId: getEmpresaActivaId(), usuarioId };
     if (USE_MOCK) {
       const newId = 6000 + Math.floor(Math.random() * 1000);
-      return { ...pago, id: newId, empresaId: getEmpresaActivaId() };
+      const saved = { ...payload, id: newId };
+      mockPagos.push(saved);
+      return saved;
     }
-    return apiPost<Pago>(BASE, pago);
+    return apiPost<Pago>(BASE, payload);
   },
 
   async delete(id: number): Promise<void> {

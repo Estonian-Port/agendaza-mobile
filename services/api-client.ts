@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { CustomResponse } from '@/types/domain';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
-export const USE_MOCK = (process.env.EXPO_PUBLIC_USE_MOCK ?? 'true') === 'true';
+export const USE_MOCK = (process.env.EXPO_PUBLIC_USE_MOCK ?? 'false') === 'true';
 
 const TOKEN_KEY = 'agendaza_jwt';
 
@@ -47,7 +47,7 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(async (config) => {
   const token = await getToken();
-  if (token) {
+  if (token && !config.url?.endsWith('/login')) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

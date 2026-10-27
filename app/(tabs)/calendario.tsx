@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
+import { CalendarDays, Search } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
+import { EventCard } from '@/components/calendar/EventCard';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { MovementSheet } from '@/components/finance/MovementSheet';
+import { EventDetailSheet } from '@/components/calendar/EventDetailSheet';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { globalStyles } from '@/constants/styles';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { eventoService } from '@/services/evento.service';
-import { EventoAgenda } from '@/types/domain';
+import { Evento, EventoAgenda } from '@/types/domain';
+
+type SearchType = 'CODIGO' | 'FECHA';
+type MovementType = 'PAGO' | 'GASTO';
 
 function toDateKey(date: Date) {
   const year = date.getFullYear();
@@ -33,6 +43,18 @@ export default function CalendarioScreen() {
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchType, setSearchType] = useState<SearchType>('FECHA');
+  const [searchCode, setSearchCode] = useState('');
+  const [searchDate, setSearchDate] = useState(() => toDateKey(new Date()));
+  const [searchResults, setSearchResults] = useState<Evento[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [eventDetailId, setEventDetailId] = useState<number | null>(null);
+  const [movementEvent, setMovementEvent] = useState<Evento | null>(null);
+  const [movementType, setMovementType] = useState<MovementType>('PAGO');
+  const [movementSheetOpen, setMovementSheetOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -51,7 +73,7 @@ export default function CalendarioScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const markedDates = useMemo(() => {
     const marks: Record<string, { marked?: boolean; dotColor?: string; selected?: boolean; selectedColor?: string }> = {};
@@ -77,6 +99,42 @@ export default function CalendarioScreen() {
 
   const selectDate = (date: DateData) => setSelectedDate(date.dateString);
 
+  const buscarEvento = async () => {
+    setSearchError('');
+    setSearchResults([]);
+    setSearchLoading(true);
+    try {
+      if (searchType === 'CODIGO') {
+        if (!searchCode.trim()) {
+          setSearchError('Ingresá el código del evento.');
+          return;
+        }
+        const id = await eventoService.getEventoIdByCodigo(searchCode.trim());
+        setSearchOpen(false);
+        setEventDetailId(id);
+        return;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(searchDate)) {
+        setSearchError('Ingresá la fecha con formato AAAA-MM-DD.');
+        return;
+      }
+      const results = await eventoService.getAllEventosByFecha(searchDate);
+      setSearchResults(results);
+      if (results.length === 0) setSearchError('No hay eventos para esa fecha.');
+    } catch (cause) {
+      setSearchError(cause instanceof Error ? cause.message : 'No se pudo buscar el evento.');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const abrirMovimiento = (type: MovementType, event: Evento) => {
+    setMovementType(type);
+    setMovementEvent(event);
+    setEventDetailId(null);
+    setMovementSheetOpen(true);
+  };
+
   return (
     <ScrollView contentContainerStyle={[globalStyles.screenContent, styles.content]}>
       <Card radius="panel" shadow="soft" style={styles.heading}>
@@ -89,6 +147,65 @@ export default function CalendarioScreen() {
               : 'No hay próximos eventos'}
         </Text>
       </Card>
+
+      <Card radius="panel" shadow="soft" style={styles.searchPanel}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setSearchOpen(true)}
+          style={styles.searchTrigger}
+        >
+          <CalendarDays size={17} color={Colors.primary} />
+          <Text style={styles.searchTitle}>Buscar evento</Text>
+          <Search size={17} color={Colors.text} />
+        </Pressable>
+      </Card>
+
+      <BottomSheet open={searchOpen} onClose={() => setSearchOpen(false)} title="Buscar evento" height="75%">
+        <View style={styles.searchSwitch}>
+          {(['FECHA', 'CODIGO'] as const).map((value) => {
+            const selected = searchType === value;
+            return (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => { setSearchType(value); setSearchResults([]); setSearchError(''); }}
+                style={[styles.searchOption, selected && styles.searchOptionSelected]}
+              >
+                <Text style={[styles.searchLabel, selected && styles.searchLabelSelected]}>
+                  {value === 'CODIGO' ? 'Código' : 'Fecha'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.searchRow}>
+          <View style={styles.searchInput}>
+            {searchType === 'CODIGO' ? (
+              <Input label="Código del evento" value={searchCode} onChangeText={setSearchCode} placeholder="Ej: ABCD" />
+            ) : (
+              <Input label="Fecha (AAAA-MM-DD)" value={searchDate} onChangeText={setSearchDate} placeholder="2026-10-27" />
+            )}
+          </View>
+          <Button label="Buscar" size="md" icon={<Search size={16} color={Colors.white} />} onPress={() => void buscarEvento()} loading={searchLoading} style={styles.searchButton} />
+        </View>
+        {!!searchError && <Text accessibilityRole="alert" style={styles.searchError}>{searchError}</Text>}
+        {searchResults.map((event) => (
+          <EventCard
+            key={event.id}
+            title={event.nombre}
+            code={event.codigo}
+            start={event.inicio}
+            end={event.fin}
+            status={event.estado}
+            onPress={() => {
+              setSearchOpen(false);
+              setSelectedDate(event.inicio.slice(0, 10));
+              setEventDetailId(event.id);
+            }}
+          />
+        ))}
+      </BottomSheet>
 
       <Card radius="panel" shadow="soft" style={styles.calendarCard}>
         <Calendar
@@ -133,24 +250,40 @@ export default function CalendarioScreen() {
           </View>
         ) : (
           <View>
-            {selectedEvents.map((event, index) => (
-              <View
+            {selectedEvents.map((event) => (
+              <EventCard
                 key={event.id}
-                style={[styles.eventRow, index < selectedEvents.length - 1 && styles.eventRowDivider]}
-              >
-              <View style={[styles.eventMarker, { backgroundColor: event.color || Colors.primary }]} />
-              <View style={styles.eventDetails}>
-                <Text style={styles.eventName}>{event.title}</Text>
-                <Text style={styles.eventTime}>
-                  {event.start.slice(11, 16)} – {event.end.slice(11, 16)}
-                </Text>
-              </View>
-              <Text style={styles.eventStatus}>{event.estado}</Text>
-              </View>
+                title={event.title}
+                code={event.codigo}
+                start={event.start}
+                end={event.end}
+                status={event.estado}
+                color={event.color}
+                onPress={() => setEventDetailId(event.id)}
+              />
             ))}
           </View>
         )}
       </Card>
+      {usuario && (
+        <>
+          <EventDetailSheet
+            open={eventDetailId !== null}
+            eventId={eventDetailId}
+            onClose={() => setEventDetailId(null)}
+            onUpdated={() => setRefreshKey((current) => current + 1)}
+            onAddMovement={abrirMovimiento}
+          />
+          <MovementSheet
+            open={movementSheetOpen}
+            initialType={movementType}
+            initialEvent={movementEvent}
+            usuario={usuario}
+            onClose={() => setMovementSheetOpen(false)}
+            onSaved={() => setRefreshKey((current) => current + 1)}
+          />
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -161,6 +294,18 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     padding: 16,
   },
+  searchPanel: { marginBottom: 14 },
+  searchTitle: { flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textDark },
+  searchTrigger: { minHeight: 48, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  searchSwitch: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  searchOption: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: 8, borderWidth: 1, borderColor: Colors.neutralBorder },
+  searchOptionSelected: { borderColor: Colors.primary, backgroundColor: '#edf4ff' },
+  searchLabel: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.text },
+  searchLabelSelected: { color: Colors.primary },
+  searchRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  searchInput: { flex: 1 },
+  searchButton: { marginTop: 18 },
+  searchError: { marginTop: 4, marginBottom: 8, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.danger },
   calendarCard: { padding: 8, marginBottom: 14 },
   eventsPanel: { padding: 16 },
   eventsHeading: {
@@ -207,30 +352,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.text,
     marginTop: 5,
-  },
-  eventRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  eventRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
-  eventMarker: { width: 4, alignSelf: 'stretch', borderRadius: 2, marginRight: 12 },
-  eventDetails: { flex: 1 },
-  eventName: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: Colors.textDark,
-  },
-  eventTime: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: Colors.text,
-    marginTop: 4,
-  },
-  eventStatus: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 10,
-    color: Colors.neutralText,
-    marginLeft: 8,
   },
 });

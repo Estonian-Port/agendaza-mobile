@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, Download, Wallet } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, Download, Plus, Wallet } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { MovementSheet } from '@/components/finance/MovementSheet';
 import { globalStyles } from '@/constants/styles';
 import { Colors, Radius } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
+import { gastoService } from '@/services/gasto.service';
 import { pagoService } from '@/services/pago.service';
-import { Pago, ResumenPagosMes } from '@/types/domain';
+import { Gasto, Pago, ResumenPagosMes } from '@/types/domain';
 
 type FiltroMovimiento = 'TODOS' | 'INGRESOS' | 'EGRESOS';
 const PAGE_SIZE = 10;
@@ -18,6 +21,16 @@ const filtros: { label: string; value: FiltroMovimiento }[] = [
   { label: 'Ingresos', value: 'INGRESOS' },
   { label: 'Gastos', value: 'EGRESOS' },
 ];
+
+type MovimientoFinanciero = {
+  id: string;
+  fecha: string;
+  monto: number;
+  esIngreso: boolean;
+  titulo: string;
+  etiqueta: string;
+  pagoId?: number;
+};
 
 const moneda = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -49,40 +62,65 @@ function conceptLabel(pago: Pago) {
   return labels[pago.concepto];
 }
 
+function toMovimiento(pago: Pago): MovimientoFinanciero {
+  return {
+    id: `pago-${pago.id}`,
+    fecha: pago.fecha,
+    monto: pago.monto,
+    esIngreso: pago.esIngreso ?? true,
+    titulo: pago.descripcion || pago.eventoNombre || pago.nombreEvento || pago.codigo || conceptLabel(pago),
+    etiqueta: pago.medioDePago || pago.medioPago || conceptLabel(pago),
+    pagoId: pago.id,
+  };
+}
+
+function toMovimientoGasto(gasto: Gasto): MovimientoFinanciero {
+  return {
+    id: `gasto-${gasto.id}`,
+    fecha: gasto.fecha,
+    monto: gasto.monto,
+    esIngreso: false,
+    titulo: gasto.descripcion || gasto.tipoGasto,
+    etiqueta: gasto.tipoGasto,
+  };
+}
+
 export default function FinanzasScreen() {
+  const { usuario } = useAuth();
   const [mes, setMes] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [filtro, setFiltro] = useState<FiltroMovimiento>('TODOS');
   const [pagos, setPagos] = useState<Pago[]>([]);
+  const [gastos, setGastos] = useState<Gasto[]>([]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [resumen, setResumen] = useState<ResumenPagosMes | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
+  const [movementSheetOpen, setMovementSheetOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const requestId = useRef(0);
 
   useEffect(() => {
     const currentRequestId = ++requestId.current;
     let active = true;
     setLoading(true);
-    setLoadingMore(false);
-    setHasMore(false);
+    setVisibleCount(PAGE_SIZE);
     setPagos([]);
+    setGastos([]);
     setError(null);
-    setLoadMoreError(null);
 
     Promise.all([
-      pagoService.getAllByMes(mes.getMonth() + 1, mes.getFullYear(), 0, PAGE_SIZE),
+      pagoService.getAllByMes(mes.getMonth() + 1, mes.getFullYear()),
       pagoService.getResumenMes(mes.getMonth() + 1, mes.getFullYear()),
+      gastoService.getAllByMes(mes.getMonth() + 1, mes.getFullYear()),
     ])
-      .then(([movimientos, resultado]) => {
+      .then(([movimientos, resultado, gastosDelMes]) => {
         if (!active || currentRequestId !== requestId.current) return;
         setPagos(movimientos.sort((a, b) => b.fecha.localeCompare(a.fecha)));
-        setHasMore(movimientos.length === PAGE_SIZE);
+        setGastos(gastosDelMes);
         setResumen(resultado);
       })
       .catch(() => {
@@ -97,39 +135,22 @@ export default function FinanzasScreen() {
     return () => {
       active = false;
     };
-  }, [mes]);
+  }, [mes, refreshKey]);
 
-  const cargarMas = async () => {
-    if (loadingMore || !hasMore) return;
-    const currentRequestId = requestId.current;
-    const nextPage = Math.ceil(pagos.length / PAGE_SIZE);
-    setLoadingMore(true);
-    setLoadMoreError(null);
+  const cargarMas = () => setVisibleCount((actual) => actual + PAGE_SIZE);
 
-    try {
-      const movimientos = await pagoService.getAllByMes(
-        mes.getMonth() + 1,
-        mes.getFullYear(),
-        nextPage,
-        PAGE_SIZE,
-      );
-      if (currentRequestId !== requestId.current) return;
-      setPagos((actuales) => [...actuales, ...movimientos].sort((a, b) => b.fecha.localeCompare(a.fecha)));
-      setHasMore(movimientos.length === PAGE_SIZE);
-    } catch {
-      if (currentRequestId === requestId.current) {
-        setLoadMoreError('No se pudieron cargar más movimientos.');
-      }
-    } finally {
-      if (currentRequestId === requestId.current) setLoadingMore(false);
-    }
-  };
-
-  const movimientosFiltrados = useMemo(() => pagos.filter((pago) => {
-    if (filtro === 'INGRESOS') return pago.esIngreso;
-    if (filtro === 'EGRESOS') return !pago.esIngreso;
+  const movimientos = useMemo(() => [
+    ...pagos.map(toMovimiento),
+    ...gastos.map(toMovimientoGasto),
+  ].sort((a, b) => b.fecha.localeCompare(a.fecha)), [pagos, gastos]);
+  const movimientosFiltrados = useMemo(() => movimientos.filter((movimiento) => {
+    if (filtro === 'INGRESOS') return movimiento.esIngreso;
+    if (filtro === 'EGRESOS') return !movimiento.esIngreso;
     return true;
-  }), [filtro, pagos]);
+  }), [filtro, movimientos]);
+  const cantidadMovimientos = resumen?.cantidadMovimientos
+    ?? (resumen?.cantidadIngresos ?? 0) + (resumen?.cantidadEgresos ?? 0);
+  const hasMore = movimientosFiltrados.length > visibleCount;
 
   const cambiarMes = (cantidad: number) => {
     setMes((actual) => new Date(actual.getFullYear(), actual.getMonth() + cantidad, 1));
@@ -171,8 +192,18 @@ export default function FinanzasScreen() {
   return (
     <ScrollView contentContainerStyle={[globalStyles.screenContent, styles.content]}>
       <Card radius="panel" shadow="soft" style={styles.heading}>
-        <Text style={globalStyles.pageTitle}>Finanzas</Text>
-        <Text style={globalStyles.pageSubtitle}>Ingresos, gastos y pagos</Text>
+        <View style={styles.headingCopy}>
+          <Text style={globalStyles.pageTitle}>Finanzas</Text>
+          <Text style={globalStyles.pageSubtitle}>Ingresos, gastos y pagos</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Nuevo movimiento"
+          onPress={() => setMovementSheetOpen(true)}
+          style={styles.addButton}
+        >
+          <Plus size={21} color={Colors.white} />
+        </Pressable>
       </Card>
 
       <Card radius="panel" shadow="soft" style={styles.panel}>
@@ -219,7 +250,7 @@ export default function FinanzasScreen() {
       <Card radius="panel" shadow="soft" style={styles.panel}>
         <View style={styles.listHeading}>
           <Text style={styles.sectionTitle}>Movimientos</Text>
-          <Text style={styles.movementCount}>{resumen?.cantidadMovimientos ?? 0}</Text>
+          <Text style={styles.movementCount}>{cantidadMovimientos}</Text>
         </View>
 
         <View style={styles.filters}>
@@ -252,13 +283,13 @@ export default function FinanzasScreen() {
               </View>
             ) : (
               <View style={styles.movementList}>
-                {movimientosFiltrados.map((pago, index) => {
-                  const esIngreso = pago.esIngreso;
+                {movimientosFiltrados.slice(0, visibleCount).map((movimiento, index) => {
+                  const esIngreso = movimiento.esIngreso;
                   const tint = esIngreso ? Colors.success : Colors.danger;
                   const Icon = esIngreso ? ArrowUpRight : ArrowDownLeft;
                   return (
                     <View
-                      key={pago.id}
+                      key={movimiento.id}
                       style={[styles.movementCard, index < movimientosFiltrados.length - 1 && styles.movementCardDivider]}
                     >
                       <View style={[styles.movementIcon, { backgroundColor: esIngreso ? '#e9f6ef' : '#fcebed' }]}>
@@ -266,29 +297,31 @@ export default function FinanzasScreen() {
                       </View>
                       <View style={styles.movementDetails}>
                         <Text style={styles.movementTitle} numberOfLines={1}>
-                          {pago.descripcion || pago.eventoNombre || conceptLabel(pago)}
+                          {movimiento.titulo}
                         </Text>
                         <View style={styles.movementMeta}>
-                          <Text style={styles.movementDate}>{dateLabel(pago.fecha)}</Text>
-                          <Text style={styles.conceptTag}>{conceptLabel(pago)}</Text>
+                          <Text style={styles.movementDate}>{dateLabel(movimiento.fecha)}</Text>
+                          <Text style={styles.conceptTag}>{movimiento.etiqueta}</Text>
                         </View>
                       </View>
                       <View style={styles.amountAndDownload}>
                         <Text style={[styles.amount, { color: tint }]}>
-                          {esIngreso ? '+' : '-'}{moneda.format(pago.monto)}
+                          {esIngreso ? '+' : '-'}{moneda.format(movimiento.monto)}
                         </Text>
-                        <Pressable
-                          accessibilityLabel={`Descargar comprobante del movimiento ${pago.id}`}
-                          disabled={descargandoId !== null}
-                          onPress={() => void descargarComprobante(pago.id)}
-                          style={styles.downloadButton}
-                        >
-                          {descargandoId === pago.id ? (
-                            <ActivityIndicator size="small" color={Colors.primary} />
-                          ) : (
-                            <Download size={17} color={Colors.primary} />
-                          )}
-                        </Pressable>
+                        {movimiento.pagoId !== undefined && (
+                          <Pressable
+                            accessibilityLabel={`Descargar comprobante del movimiento ${movimiento.pagoId}`}
+                            disabled={descargandoId !== null}
+                            onPress={() => void descargarComprobante(movimiento.pagoId!)}
+                            style={styles.downloadButton}
+                          >
+                            {descargandoId === movimiento.pagoId ? (
+                              <ActivityIndicator size="small" color={Colors.primary} />
+                            ) : (
+                              <Download size={17} color={Colors.primary} />
+                            )}
+                          </Pressable>
+                        )}
                       </View>
                     </View>
                   );
@@ -301,15 +334,23 @@ export default function FinanzasScreen() {
                 label="Cargar 10 más"
                 variant="outline"
                 size="sm"
-                onPress={() => void cargarMas()}
-                loading={loadingMore}
+                onPress={cargarMas}
                 style={styles.loadMoreButton}
               />
             )}
-            {loadMoreError && <Text style={styles.errorText}>{loadMoreError}</Text>}
           </>
         )}
       </Card>
+
+      {usuario && (
+        <MovementSheet
+          open={movementSheetOpen}
+          initialType="PAGO"
+          usuario={usuario}
+          onClose={() => setMovementSheetOpen(false)}
+          onSaved={() => setRefreshKey((current) => current + 1)}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -341,8 +382,20 @@ function SummaryCard({
 const styles = StyleSheet.create({
   content: { backgroundColor: Colors.neutralBg },
   heading: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
     padding: 16,
+  },
+  headingCopy: { flex: 1 },
+  addButton: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+    borderRadius: Radius.button,
+    backgroundColor: Colors.primary,
   },
   monthSelector: {
     minHeight: 46,
