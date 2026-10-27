@@ -206,7 +206,30 @@ const pagosBase: Array<Omit<Pago, 'id'>> = [
   { fecha: iso(addDays(4), 8, 0), monto: 25000, medioPago: 'EFECTIVO', concepto: 'GASTO', descripcion: 'Limpieza profesional', esIngreso: false, empresaId: 1, usuarioId: 2 },
 ];
 
-export const mockPagos: Pago[] = pagosBase.map((p, i) => ({ ...p, id: 5000 + i }));
+const pagosRelativos: Pago[] = pagosBase.map((p, i) => ({ ...p, id: 5000 + i }));
+const anioMockOctubre = today.getFullYear();
+const pagosOctubre: Pago[] = Array.from({ length: 31 }, (_, index) => {
+  const esIngreso = index % 2 === 0;
+  return {
+    id: 5100 + index,
+    fecha: iso(new Date(anioMockOctubre, 9, index + 1), 9 + (index % 10)),
+    monto: 25000 + index * 1500,
+    medioPago: mockMediosDePago[index % mockMediosDePago.length],
+    concepto: esIngreso ? 'INGRESO' : 'GASTO',
+    descripcion: `${esIngreso ? 'Pago' : 'Gasto'} de prueba ${String(index + 1).padStart(2, '0')}`,
+    esIngreso,
+    empresaId: 1,
+    usuarioId: 2,
+  };
+});
+
+export const mockPagos: Pago[] = [
+  ...pagosRelativos.filter((pago) => {
+    const fecha = new Date(pago.fecha);
+    return fecha.getFullYear() !== anioMockOctubre || fecha.getMonth() !== 9;
+  }),
+  ...pagosOctubre,
+];
 
 export function getMockResumenMes(mes: number, anio: number): ResumenPagosMes {
   const filtrados = mockPagos.filter((p) => {

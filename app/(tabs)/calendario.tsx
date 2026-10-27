@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
-import { Colors, Radius, Shadow } from '@/constants/theme';
+import { Card } from '@/components/ui/Card';
+import { globalStyles } from '@/constants/styles';
+import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { eventoService } from '@/services/evento.service';
 import { EventoAgenda } from '@/types/domain';
@@ -76,19 +78,19 @@ export default function CalendarioScreen() {
   const selectDate = (date: DateData) => setSelectedDate(date.dateString);
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.heading}>
-        <Text style={styles.title}>Hola {usuario?.nombre ?? ''}!</Text>
-        <Text style={styles.subtitle}>
+    <ScrollView contentContainerStyle={[globalStyles.screenContent, styles.content]}>
+      <Card radius="panel" shadow="soft" style={styles.heading}>
+        <Text style={globalStyles.pageTitle}>Hola {usuario?.nombre ?? ''}!</Text>
+        <Text style={globalStyles.pageSubtitle}>
           {loading
             ? 'Cargando próximo evento...'
             : nextEvent
               ? `Próximo evento: ${formatEventDate(nextEvent.start)}, ${nextEvent.title}`
               : 'No hay próximos eventos'}
         </Text>
-      </View>
+      </Card>
 
-      <View style={styles.calendarCard}>
+      <Card radius="panel" shadow="soft" style={styles.calendarCard}>
         <Calendar
           firstDay={1}
           markedDates={markedDates}
@@ -112,26 +114,30 @@ export default function CalendarioScreen() {
             textDayHeaderFontSize: 12,
           }}
         />
-      </View>
+      </Card>
 
-      <View style={styles.eventsHeading}>
-        <Text style={styles.eventsTitle}>{formatSelectedDate(selectedDate)}</Text>
-        <Text style={styles.eventsCount}>{selectedEvents.length}</Text>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator color={Colors.primary} style={styles.message} />
-      ) : error ? (
-        <Text style={styles.messageText}>{error}</Text>
-      ) : selectedEvents.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Día disponible</Text>
-          <Text style={styles.emptyText}>No hay eventos agendados para esta fecha.</Text>
+      <Card radius="panel" shadow="soft" style={styles.eventsPanel}>
+        <View style={styles.eventsHeading}>
+          <Text style={styles.eventsTitle}>{formatSelectedDate(selectedDate)}</Text>
+          <Text style={styles.eventsCount}>{selectedEvents.length}</Text>
         </View>
-      ) : (
-        <View style={styles.eventList}>
-          {selectedEvents.map((event) => (
-            <View key={event.id} style={styles.eventRow}>
+
+        {loading ? (
+          <ActivityIndicator color={Colors.primary} style={styles.message} />
+        ) : error ? (
+          <Text style={styles.messageText}>{error}</Text>
+        ) : selectedEvents.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Día disponible</Text>
+            <Text style={styles.emptyText}>No hay eventos agendados para esta fecha.</Text>
+          </View>
+        ) : (
+          <View>
+            {selectedEvents.map((event, index) => (
+              <View
+                key={event.id}
+                style={[styles.eventRow, index < selectedEvents.length - 1 && styles.eventRowDivider]}
+              >
               <View style={[styles.eventMarker, { backgroundColor: event.color || Colors.primary }]} />
               <View style={styles.eventDetails}>
                 <Text style={styles.eventName}>{event.title}</Text>
@@ -140,45 +146,28 @@ export default function CalendarioScreen() {
                 </Text>
               </View>
               <Text style={styles.eventStatus}>{event.estado}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+              </View>
+            ))}
+          </View>
+        )}
+      </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
-    backgroundColor: Colors.tertiary,
+  content: { backgroundColor: Colors.neutralBg },
+  heading: {
+    marginBottom: 18,
+    padding: 16,
   },
-  heading: { marginBottom: 18 },
-  title: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 26,
-    color: Colors.textDark,
-  },
-  subtitle: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.text,
-    marginTop: 3,
-  },
-  calendarCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.card,
-    padding: 8,
-    ...Shadow.card,
-  },
+  calendarCard: { padding: 8, marginBottom: 14 },
+  eventsPanel: { padding: 16 },
   eventsHeading: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 26,
+    marginTop: 0,
     marginBottom: 12,
   },
   eventsTitle: {
@@ -207,12 +196,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
   },
-  emptyState: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.card,
-    padding: 18,
-    ...Shadow.soft,
-  },
+  emptyState: { paddingVertical: 12 },
   emptyTitle: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 15,
@@ -224,15 +208,12 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginTop: 5,
   },
-  eventList: { gap: 10 },
   eventRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: Radius.card,
-    padding: 15,
-    ...Shadow.soft,
+    paddingVertical: 12,
   },
+  eventRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
   eventMarker: { width: 4, alignSelf: 'stretch', borderRadius: 2, marginRight: 12 },
   eventDetails: { flex: 1 },
   eventName: {

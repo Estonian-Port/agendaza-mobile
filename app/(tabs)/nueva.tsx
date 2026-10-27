@@ -19,11 +19,13 @@ import {
   CircleX,
   Search,
 } from 'lucide-react-native';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectOption } from '@/components/ui/Select';
 import { Stepper } from '@/components/ui/Stepper';
+import { globalStyles } from '@/constants/styles';
 import { Colors, Radius, Shadow } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { authService } from '@/services/auth.service';
@@ -74,7 +76,7 @@ type ReservationValues = {
 };
 
 const initialValues: ReservationValues = {
-  duration: '',
+  duration: DURATIONS[0].value,
   tipoEventoId: '',
   capacidadAdultos: 80,
   capacidadNinos: 0,
@@ -117,7 +119,7 @@ function getStepErrors(values: ReservationValues, step: number): FormikErrors<Re
   const errors: FormikErrors<ReservationValues> = {};
   if (step === 0) {
     if (!values.duration) errors.duration = 'Seleccioná una duración.';
-    if (!values.tipoEventoId) errors.tipoEventoId = 'Seleccioná un tipo de evento.';
+    if (values.tipoEventoId === '') errors.tipoEventoId = 'Seleccioná un tipo de evento.';
   }
   if (step === 1) {
     if (!values.nombre.trim()) errors.nombre = 'Ingresá el nombre del evento.';
@@ -235,6 +237,11 @@ export default function NuevaReservaScreen() {
       .then(([tipos, fijos, variables, catering, extras]) => {
         if (!active) return;
         setTiposEvento(tipos);
+        const firstDuration = DURATIONS.find((duration) => tipos.some((tipo) => tipo.duracion === duration.value));
+        const selectedDuration = firstDuration?.value ?? DURATIONS[0].value;
+        const firstTipo = tipos.find((tipo) => tipo.duracion === selectedDuration);
+        void formik.setFieldValue('duration', selectedDuration, false);
+        if (firstTipo) void formik.setFieldValue('tipoEventoId', firstTipo.id, false);
         setExtrasFijos(fijos);
         setExtrasVariables(variables);
         setTiposCatering(catering);
@@ -353,19 +360,30 @@ export default function NuevaReservaScreen() {
     void formik.setFieldValue(field, current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   };
 
-  const goNext = async () => {
+  const markInvalidFields = async () => {
     const errors = getStepErrors(formik.values, step);
-    if (Object.keys(errors).length) {
-      const touched = Object.keys(errors).reduce<Record<string, boolean>>((result, key) => {
-        result[key] = true;
-        return result;
-      }, {});
-      await formik.setTouched(touched, false);
-      return;
-    }
-    if (step === 1 && availability === 'busy') return;
+    if (!Object.keys(errors).length) return false;
+    const touched = Object.keys(errors).reduce<Record<string, boolean>>((result, key) => {
+      result[key] = true;
+      return result;
+    }, {});
+    formik.setErrors(errors);
+    await formik.setTouched(touched, false);
+    return true;
+  };
+
+  const goNext = async () => {
+    if (await markInvalidFields()) return;
+    if (step === 1 && (availability === 'checking' || availability === 'busy')) return;
     setStep((current) => Math.min(current + 1, STEPS.length - 1));
   };
+
+  const submitReservation = async () => {
+    if (await markInvalidFields()) return;
+    void formik.submitForm();
+  };
+  const stepHasErrors = Object.keys(getStepErrors(formik.values, step)).length > 0;
+  const actionFeedbackDisabled = stepHasErrors || catalogLoading || !!catalogError || (step === 1 && (availability === 'busy' || availability === 'checking'));
 
   const dateLabel = formik.values.fecha
     ? new Date(`${formik.values.fecha}T12:00:00`).toLocaleDateString('es-AR', {
@@ -394,17 +412,20 @@ export default function NuevaReservaScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.heading}>
+      <ScrollView
+        contentContainerStyle={[globalStyles.screenContent, styles.content]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Card radius="panel" shadow="soft" style={styles.heading}>
           <View style={styles.headingText}>
             <Text style={styles.title}>Nueva reserva</Text>
-            <Text style={styles.subtitle}>Armá una propuesta para tu próximo evento</Text>
+            <Text style={styles.subtitle}>Armá tu próximo evento</Text>
           </View>
           <View style={styles.budgetBadge}>
             <Text style={styles.budgetLabel}>PRESUPUESTO</Text>
             <Text style={styles.budgetValue}>{formatCurrency(budget)}</Text>
           </View>
-        </View>
+        </Card>
 
         <View style={styles.stepper}>
           {STEPS.map((label, index) => (
@@ -420,7 +441,7 @@ export default function NuevaReservaScreen() {
           ))}
         </View>
 
-        <View style={styles.formSection}>
+        <Card radius="panel" shadow="soft" style={styles.formSection}>
           <View style={styles.sectionHeading}>
             <Text style={styles.sectionEyebrow}>PASO 0{step + 1}</Text>
             <Text style={styles.sectionTitle}>{[
@@ -444,10 +465,12 @@ export default function NuevaReservaScreen() {
                     label="Duración del evento"
                     value={formik.values.duration}
                     options={DURATIONS}
+                    error={!!formik.errors.duration && !!formik.touched.duration}
                     onChange={(value) => {
                       const duration = value as Duracion;
                       void formik.setFieldValue('duration', duration);
-                      if (selectedTipo?.duracion !== duration) void formik.setFieldValue('tipoEventoId', '');
+                      const firstTipo = tiposEvento.find((tipo) => tipo.duracion === duration);
+                      void formik.setFieldValue('tipoEventoId', firstTipo?.id ?? '');
                     }}
                     placeholder="Seleccionar duración"
                   />
@@ -455,6 +478,7 @@ export default function NuevaReservaScreen() {
                     label="Tipo de evento"
                     value={formik.values.tipoEventoId}
                     options={eventTypesByDuration.map((tipo) => ({ label: tipo.nombre, value: tipo.id }))}
+                    error={!!formik.errors.tipoEventoId && !!formik.touched.tipoEventoId}
                     onChange={(value) => void formik.setFieldValue('tipoEventoId', Number(value))}
                     placeholder="Seleccionar tipo"
                   />
@@ -483,7 +507,10 @@ export default function NuevaReservaScreen() {
                     touched={!!formik.touched.nombre}
                   />
                   <Text style={styles.fieldLabel}>Fecha del evento</Text>
-                  <Pressable style={styles.dateButton} onPress={() => setDatePickerOpen(true)}>
+                  <Pressable
+                    style={[styles.dateButton, formik.touched.fecha && formik.errors.fecha && styles.dateButtonError]}
+                    onPress={() => setDatePickerOpen(true)}
+                  >
                     <CalendarDays size={18} color={Colors.primary} />
                     <Text style={[styles.dateText, !formik.values.fecha && styles.datePlaceholder]}>{dateLabel}</Text>
                     <Text style={styles.dateChange}>Cambiar</Text>
@@ -491,10 +518,10 @@ export default function NuevaReservaScreen() {
                   {formik.touched.fecha && formik.errors.fecha && <Text style={styles.fieldError}>{formik.errors.fecha}</Text>}
                   <View style={styles.timeRow}>
                     <View style={styles.timeField}>
-                      <Select label="Desde" value={formik.values.horaInicio} options={TIMES} onChange={(value) => void formik.setFieldValue('horaInicio', value)} placeholder="Hora" />
+                        <Select label="Desde" value={formik.values.horaInicio} options={TIMES} error={!!formik.errors.horaInicio && !!formik.touched.horaInicio} onChange={(value) => void formik.setFieldValue('horaInicio', value)} placeholder="Hora" />
                     </View>
                     <View style={styles.timeField}>
-                      <Select label="Hasta" value={formik.values.horaFin} options={TIMES} onChange={(value) => void formik.setFieldValue('horaFin', value)} placeholder="Hora" />
+                        <Select label="Hasta" value={formik.values.horaFin} options={TIMES} error={!!formik.errors.horaFin && !!formik.touched.horaFin} onChange={(value) => void formik.setFieldValue('horaFin', value)} placeholder="Hora" />
                     </View>
                   </View>
                   {availability !== 'idle' && (
@@ -663,24 +690,33 @@ export default function NuevaReservaScreen() {
                   <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Evento</Text><Text style={styles.reviewValue}>{formik.values.nombre || 'Sin nombre'}</Text></View>
                   <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Invitados</Text><Text style={styles.reviewValue}>{guestCount}</Text></View>
                   <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Presupuesto estimado</Text><Text style={styles.reviewBudget}>{formatCurrency(budget)}</Text></View>
-                  {(formik.errors.cliente && typeof formik.errors.cliente !== 'string') && (
-                    <Text style={styles.inlineError}>{formik.errors.cliente.nombre || formik.errors.cliente.apellido || formik.errors.cliente.celular}</Text>
-                  )}
                   {!!submitError && <Text style={styles.inlineError}>{submitError}</Text>}
                 </>
               )}
             </>
           )}
-        </View>
+        </Card>
 
         <View style={styles.footer}>
           {step > 0 ? (
             <Button label="Anterior" variant="ghost" onPress={() => setStep((current) => current - 1)} icon={<ArrowLeft size={17} color={Colors.primary} />} />
           ) : <View />}
           {step < STEPS.length - 1 ? (
-            <Button label="Continuar" onPress={goNext} disabled={catalogLoading || !!catalogError || (step === 1 && (availability === 'busy' || availability === 'checking'))} icon={<ArrowRight size={17} color={Colors.white} />} />
+            <Button
+              label="Continuar"
+              onPress={goNext}
+              disabled={catalogLoading || !!catalogError}
+              feedbackDisabled={actionFeedbackDisabled}
+              icon={<ArrowRight size={17} color={actionFeedbackDisabled ? Colors.disabledText : Colors.white} />}
+            />
           ) : (
-            <Button label="Crear reserva" onPress={() => void formik.submitForm()} loading={formik.isSubmitting} icon={<Check size={17} color={Colors.white} />} />
+            <Button
+              label="Crear reserva"
+              onPress={() => void submitReservation()}
+              loading={formik.isSubmitting}
+              feedbackDisabled={stepHasErrors}
+              icon={<Check size={17} color={stepHasErrors ? Colors.disabledText : Colors.white} />}
+            />
           )}
         </View>
       </ScrollView>
@@ -732,11 +768,18 @@ function PriceRow({ label, price, prominent = false }: { label: string; price: n
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.tertiary },
-  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 32 },
-  heading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 22 },
+  screen: { flex: 1, backgroundColor: Colors.neutralBg },
+  content: { paddingTop: 22, backgroundColor: Colors.neutralBg },
+  heading: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 22,
+    padding: 16,
+  },
   headingText: { flex: 1 },
-  title: { fontFamily: 'Inter-Bold', fontSize: 26, color: Colors.textDark },
+  title: { fontFamily: 'Inter-Bold', fontSize: 23, color: Colors.textDark },
   subtitle: { fontFamily: 'Inter-Regular', fontSize: 13, lineHeight: 19, color: Colors.text, marginTop: 4 },
   budgetBadge: { backgroundColor: Colors.textDark, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 11, minWidth: 118 },
   budgetLabel: { color: '#b7d8d1', fontFamily: 'Inter-SemiBold', fontSize: 9, letterSpacing: 0 },
@@ -752,7 +795,7 @@ const styles = StyleSheet.create({
   stepLabelCurrent: { color: Colors.textDark, fontFamily: 'Inter-Bold' },
   stepLine: { flex: 1, height: 2, backgroundColor: '#dce2df', marginHorizontal: 2, marginBottom: 17 },
   stepLineDone: { backgroundColor: Colors.success },
-  formSection: { backgroundColor: Colors.white, borderRadius: 8, padding: 18, ...Shadow.soft },
+  formSection: { padding: 18 },
   sectionHeading: { marginBottom: 18 },
   sectionEyebrow: { fontFamily: 'Inter-Bold', fontSize: 10, color: Colors.primary },
   sectionTitle: { fontFamily: 'Inter-Bold', fontSize: 19, color: Colors.textDark, marginTop: 4 },
@@ -763,6 +806,7 @@ const styles = StyleSheet.create({
   capacitySummaryValue: { color: Colors.textDark, fontFamily: 'Inter-Bold', fontSize: 13 },
   fieldLabel: { color: Colors.textSoft, fontFamily: 'Inter-SemiBold', fontSize: 13, marginBottom: 6 },
   dateButton: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.neutralBorder, borderRadius: Radius.input, minHeight: 48, paddingHorizontal: 12, marginBottom: 12 },
+  dateButtonError: { borderColor: Colors.danger },
   dateText: { flex: 1, color: Colors.textDark, fontFamily: 'Inter-Medium', fontSize: 13, textTransform: 'capitalize' },
   datePlaceholder: { color: Colors.disabledText },
   dateChange: { color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 12 },

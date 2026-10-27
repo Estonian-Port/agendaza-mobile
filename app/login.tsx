@@ -8,10 +8,12 @@ import {
   Platform,
   Pressable,
   Alert,
+  Image,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { CalendarDays, Lock, Mail, Eye, EyeOff } from 'lucide-react-native';
-import { Colors, Radius, Shadow, Typography } from '@/constants/theme';
+import { Lock, Mail, Eye, EyeOff } from 'lucide-react-native';
+import { Card } from '@/components/ui/Card';
+import { Colors, Radius, Shadow } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -49,17 +51,14 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.hero}>
-          <View style={styles.logoWrap}>
-            <CalendarDays size={40} color={Colors.white} strokeWidth={2.2} />
-          </View>
+        <Card radius="panel" shadow="soft" style={styles.loginCard}>
+          <Image
+            source={require('../assets/images/icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.brand}>Agendaza</Text>
           <Text style={styles.tagline}>Gestión de salones y eventos</Text>
-        </View>
-
-        <View style={styles.formCard}>
-          <Text style={styles.welcome}>Bienvenido</Text>
-          <Text style={styles.subtitle}>Ingresá con tu cuenta para continuar</Text>
 
           <View style={styles.inputWrap}>
             <Input
@@ -106,7 +105,7 @@ export default function LoginScreen() {
             size="lg"
             style={styles.submitBtn}
           />
-        </View>
+        </Card>
 
         <View style={styles.demoWrap}>
           <Text style={styles.demoTitle}>Cuentas de prueba (Mock Mode)</Text>
@@ -135,27 +134,18 @@ const demoAccounts = [
 ];
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.tertiary },
+  flex: { flex: 1, backgroundColor: Colors.neutralBg },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
-  hero: {
+  loginCard: {
     alignItems: 'center',
-    paddingTop: 70,
-    paddingBottom: 30,
+    padding: 24,
   },
-  logoWrap: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    ...Shadow.cardLg,
-  },
+  logoImage: { width: 64, height: 64, marginBottom: 12 },
   brand: {
     fontFamily: 'Inter-Bold',
     fontSize: 30,
@@ -167,27 +157,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.text,
     marginTop: 4,
+    marginBottom: 24,
   },
-  formCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.cardLg,
-    padding: 24,
-    marginTop: 8,
-    ...Shadow.cardLg,
-  },
-  welcome: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 22,
-    color: Colors.textDark,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.text,
-    marginBottom: 22,
-  },
-  inputWrap: { marginBottom: 4 },
+  inputWrap: { width: '100%', marginBottom: 4 },
   errorText: {
     fontFamily: 'Inter-Regular',
     fontSize: 13,

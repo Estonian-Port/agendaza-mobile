@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Tabs, Redirect, useRouter } from 'expo-router';
 import { Building2, CalendarDays, ChevronLeft, ChevronRight, LogOut, Plus, Repeat, Settings, UserRound, Wallet } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
@@ -44,7 +44,11 @@ export default function TabLayout() {
     <View style={styles.screen}>
       <View style={[styles.navbar, { paddingTop: insets.top + 8 }]}>
         <View style={styles.brand}>
-          <CalendarDays size={23} color={Colors.primary} strokeWidth={2.2} />
+          <Image
+            source={require('../../assets/images/icon.png')}
+            style={styles.brandIcon}
+            resizeMode="contain"
+          />
           {agendas.length > 1 ? (
             <Pressable
               accessibilityRole="button"
@@ -188,6 +192,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brandIcon: { width: 34, height: 34 },
   brandName: {
     fontFamily: 'Inter-Bold',
     fontSize: 19,

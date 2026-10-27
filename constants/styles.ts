@@ -15,6 +15,14 @@ export function fontText(weight: FontWeight = '400'): TextStyle {
 }
 
 export const globalStyles = StyleSheet.create({
+  screenContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  pageTitle: { fontFamily: 'Inter-Bold', fontSize: 26, color: Colors.textDark },
+  pageSubtitle: { fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.text, marginTop: 3 },
   body: { ...Typography.body, color: Colors.text, fontFamily: 'Inter-Regular' },
   heading: { ...Typography.heading, color: Colors.textDark, fontFamily: 'Inter-SemiBold' },
   title: { ...Typography.title, color: Colors.textDark, fontFamily: 'Inter-Bold' },

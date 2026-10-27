@@ -15,9 +15,16 @@ export const pagoService = {
     return apiGet<Pago>(`${BASE}/${id}`);
   },
 
-  async getAllByMes(mes: number, anio: number): Promise<Pago[]> {
-    if (USE_MOCK) return getMockPagosMes(mes, anio);
-    return apiGet<Pago[]>(`${BASE}/empresa/${getEmpresaActivaId()}/mes`, { mes, anio });
+  async getAllByMes(mes: number, anio: number, pageNumber: number = 0, pageSize: number = 10): Promise<Pago[]> {
+    if (USE_MOCK) {
+      return getMockPagosMes(mes, anio).slice(pageNumber * pageSize, (pageNumber + 1) * pageSize);
+    }
+    return apiGet<Pago[]>(`${BASE}/empresa/${getEmpresaActivaId()}/mes`, {
+      mes,
+      anio,
+      page: pageNumber,
+      size: pageSize,
+    });
   },
 
   async getAllByEmpresa(pageNumber: number = 0): Promise<Pago[]> {

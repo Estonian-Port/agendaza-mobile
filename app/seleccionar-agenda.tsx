@@ -27,15 +27,21 @@ export default function SeleccionarAgendaScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 28 }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.heading}>
+      <Card radius="panel" shadow="soft" style={styles.heading}>
         <Text style={styles.eyebrow}>Agendaza · {usuario.nombre}</Text>
         <Text style={styles.title}>Seleccione una Agenda</Text>
         <Text style={styles.subtitle}>Elija el salón que desea gestionar.</Text>
-      </View>
+      </Card>
 
       <View style={styles.list}>
         {sortedAgendas.map((agenda, index) => (
-          <Card key={agenda.id} onPress={() => handleSelect(agenda)} style={styles.agendaCard}>
+          <Card
+            key={agenda.id}
+            onPress={() => handleSelect(agenda)}
+            radius="panel"
+            shadow="soft"
+            style={styles.agendaCard}
+          >
             <View style={styles.iconWrap}>
               <Building2 size={22} color={Colors.primary} strokeWidth={2} />
             </View>
@@ -45,13 +51,12 @@ export default function SeleccionarAgendaScreen() {
                 <Text style={styles.agendaAddress}>{agenda.direccion}</Text>
               ) : null}
             </View>
-            <View style={styles.numberWrap}>
-              <Text style={styles.number}>{String(index + 1).padStart(2, '0')}</Text>
-            </View>
             <ChevronRight size={20} color={Colors.text} />
           </Card>
         ))}
       </View>
+
+      <View style={styles.spacer} />
 
       <Pressable
         accessibilityRole="button"
@@ -66,9 +71,12 @@ export default function SeleccionarAgendaScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.tertiary },
+  screen: { flex: 1, backgroundColor: Colors.neutralBg },
   content: { flexGrow: 1, paddingHorizontal: 22 },
-  heading: { marginBottom: 28 },
+  heading: {
+    marginBottom: 28,
+    padding: 16,
+  },
   eyebrow: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 11,
@@ -90,12 +98,10 @@ const styles = StyleSheet.create({
     marginTop: 7,
   },
   list: { gap: 12 },
+  spacer: { flexGrow: 1 },
   agendaCard: {
     minHeight: 86,
     padding: 16,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-    borderColor: Colors.borderSoft,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 13,

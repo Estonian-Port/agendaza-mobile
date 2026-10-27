@@ -16,6 +16,7 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
+  feedbackDisabled?: boolean;
   loading?: boolean;
   icon?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -28,6 +29,7 @@ export function Button({
   variant = 'primary',
   size = 'md',
   disabled,
+  feedbackDisabled,
   loading,
   icon,
   style,
@@ -40,10 +42,13 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading, busy: !!loading }}
       style={({ pressed }) => [
         styles.base,
         sizing,
         palette.container,
+        feedbackDisabled && styles.feedbackDisabled,
         fullWidth && styles.fullWidth,
         (disabled || loading) && styles.disabled,
         pressed && styles.pressed,
@@ -51,11 +56,11 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={palette.text} size="small" />
+        <ActivityIndicator color={palette.text.color} size="small" />
       ) : (
         <View style={styles.content}>
           {icon && <View style={styles.icon}>{icon}</View>}
-          <Text style={[Typography.heading, palette.text, styles.label]}>{label}</Text>
+            <Text style={[Typography.heading, palette.text, styles.label, feedbackDisabled && styles.feedbackDisabledLabel]}>{label}</Text>
         </View>
       )}
     </Pressable>
@@ -106,5 +111,7 @@ const styles = StyleSheet.create({
   icon: { marginRight: 8 },
   label: { fontSize: 15 },
   disabled: { opacity: 0.5 },
+  feedbackDisabled: { backgroundColor: Colors.disabledBg },
+  feedbackDisabledLabel: { color: Colors.disabledText },
   pressed: { opacity: 0.85 },
 });
