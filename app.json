@@ -21,7 +21,8 @@
       "expo-web-browser",
       "expo-splash-screen",
       "expo-status-bar",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
