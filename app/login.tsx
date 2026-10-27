@@ -10,6 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { Lock, UserRound, Eye, EyeOff } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
@@ -50,6 +51,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -109,17 +111,26 @@ export default function LoginScreen() {
         </Card>
 
       </ScrollView>
+      <Text style={styles.appVersion}>v{Constants.expoConfig?.version}</Text>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Colors.neutralBg },
+  scroll: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingBottom: 40,
+  },
+  appVersion: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    color: Colors.text,
+    textAlign: 'center',
+    paddingBottom: 16,
   },
   loginCard: {
     alignItems: 'center',

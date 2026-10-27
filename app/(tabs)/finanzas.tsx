@@ -19,7 +19,7 @@ const PAGE_SIZE = 10;
 const filtros: { label: string; value: FiltroMovimiento }[] = [
   { label: 'Todos', value: 'TODOS' },
   { label: 'Ingresos', value: 'INGRESOS' },
-  { label: 'Gastos', value: 'EGRESOS' },
+  { label: 'Egresos', value: 'EGRESOS' },
 ];
 
 type MovimientoFinanciero = {
@@ -194,7 +194,7 @@ export default function FinanzasScreen() {
       <Card radius="panel" shadow="soft" style={styles.heading}>
         <View style={styles.headingCopy}>
           <Text style={globalStyles.pageTitle}>Finanzas</Text>
-          <Text style={globalStyles.pageSubtitle}>Ingresos, gastos y pagos</Text>
+          <Text style={globalStyles.pageSubtitle}>Gestiona tus movimientos</Text>
         </View>
         <Pressable
           accessibilityRole="button"

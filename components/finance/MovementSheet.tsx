@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { CalendarDays, Check, Search } from 'lucide-react-native';
+import { CalendarDays, Check } from 'lucide-react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { EventCard } from '@/components/calendar/EventCard';
+import { EventSearchFields } from '@/components/calendar/EventSearchFields';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectOption } from '@/components/ui/Select';
@@ -329,23 +330,15 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
                 })}
               </View>
 
-              <View style={styles.searchRow}>
-                <View style={styles.searchInput}>
-                  {tipoBusqueda === 'CODIGO' ? (
-                    <Input label="Código del evento" value={codigo} onChangeText={setCodigo} placeholder="Ej: ABCD" />
-                  ) : (
-                    <Input label="Fecha del evento" value={fecha} onChangeText={setFecha} placeholder="AAAA-MM-DD" />
-                  )}
-                </View>
-                <Button
-                  label="Buscar"
-                  size="md"
-                  icon={<Search size={16} color={Colors.white} />}
-                  onPress={() => void buscarEvento()}
-                  loading={buscando || cargandoEvento}
-                  style={styles.searchButton}
-                />
-              </View>
+              <EventSearchFields
+                searchType={tipoBusqueda}
+                value={tipoBusqueda === 'CODIGO' ? codigo : fecha}
+                onChangeText={tipoBusqueda === 'CODIGO' ? setCodigo : setFecha}
+                dateLabel="Fecha del evento"
+                datePlaceholder="AAAA-MM-DD"
+                loading={buscando || cargandoEvento}
+                onSearch={() => void buscarEvento()}
+              />
               {eventos.map((item) => (
                 <EventCard
                   key={item.id}
@@ -410,9 +403,6 @@ const styles = StyleSheet.create({
   searchOptionSelected: { borderColor: Colors.primary, backgroundColor: '#edf4ff' },
   searchLabel: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.text },
   searchLabelSelected: { color: Colors.primary },
-  searchRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  searchInput: { flex: 1 },
-  searchButton: { marginTop: 18 },
   changeEventText: { fontFamily: 'Inter-SemiBold', fontSize: 12, color: Colors.primary },
   formFields: { marginTop: 16 },
   loader: { marginVertical: 36 },

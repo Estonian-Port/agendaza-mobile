@@ -4,8 +4,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { CalendarDays, Search } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
 import { EventCard } from '@/components/calendar/EventCard';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { EventSearchFields } from '@/components/calendar/EventSearchFields';
 import { MovementSheet } from '@/components/finance/MovementSheet';
 import { EventDetailSheet } from '@/components/calendar/EventDetailSheet';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -148,17 +147,19 @@ export default function CalendarioScreen() {
         </Text>
       </Card>
 
-      <Card radius="panel" shadow="soft" style={styles.searchPanel}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setSearchOpen(true)}
-          style={styles.searchTrigger}
-        >
-          <CalendarDays size={17} color={Colors.primary} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Buscar evento por fecha o código"
+        onPress={() => setSearchOpen(true)}
+        style={({ pressed }) => [styles.searchTrigger, pressed && styles.searchPressed]}
+      >
+        <Search size={20} color={Colors.white} />
+        <View style={styles.searchCopy}>
           <Text style={styles.searchTitle}>Buscar evento</Text>
-          <Search size={17} color={Colors.text} />
-        </Pressable>
-      </Card>
+          <Text style={styles.searchSubtitle}>Por fecha o código</Text>
+        </View>
+        <CalendarDays size={19} color={Colors.white} />
+      </Pressable>
 
       <BottomSheet open={searchOpen} onClose={() => setSearchOpen(false)} title="Buscar evento" height="75%">
         <View style={styles.searchSwitch}>
@@ -179,16 +180,15 @@ export default function CalendarioScreen() {
             );
           })}
         </View>
-        <View style={styles.searchRow}>
-          <View style={styles.searchInput}>
-            {searchType === 'CODIGO' ? (
-              <Input label="Código del evento" value={searchCode} onChangeText={setSearchCode} placeholder="Ej: ABCD" />
-            ) : (
-              <Input label="Fecha (AAAA-MM-DD)" value={searchDate} onChangeText={setSearchDate} placeholder="2026-10-27" />
-            )}
-          </View>
-          <Button label="Buscar" size="md" icon={<Search size={16} color={Colors.white} />} onPress={() => void buscarEvento()} loading={searchLoading} style={styles.searchButton} />
-        </View>
+        <EventSearchFields
+          searchType={searchType}
+          value={searchType === 'CODIGO' ? searchCode : searchDate}
+          onChangeText={searchType === 'CODIGO' ? setSearchCode : setSearchDate}
+          dateLabel="Fecha (AAAA-MM-DD)"
+          datePlaceholder="2026-10-27"
+          loading={searchLoading}
+          onSearch={() => void buscarEvento()}
+        />
         {!!searchError && <Text accessibilityRole="alert" style={styles.searchError}>{searchError}</Text>}
         {searchResults.map((event) => (
           <EventCard
@@ -294,17 +294,25 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     padding: 16,
   },
-  searchPanel: { marginBottom: 14 },
-  searchTitle: { flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textDark },
-  searchTrigger: { minHeight: 48, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  searchTrigger: {
+    minHeight: 62,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+  },
+  searchPressed: { opacity: 0.86 },
+  searchCopy: { flex: 1, gap: 2 },
+  searchTitle: { fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.white },
+  searchSubtitle: { fontFamily: 'Inter-Regular', fontSize: 12, color: '#eaf2ff' },
   searchSwitch: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   searchOption: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: 8, borderWidth: 1, borderColor: Colors.neutralBorder },
   searchOptionSelected: { borderColor: Colors.primary, backgroundColor: '#edf4ff' },
   searchLabel: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.text },
   searchLabelSelected: { color: Colors.primary },
-  searchRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  searchInput: { flex: 1 },
-  searchButton: { marginTop: 18 },
   searchError: { marginTop: 4, marginBottom: 8, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.danger },
   calendarCard: { padding: 8, marginBottom: 14 },
   eventsPanel: { padding: 16 },
