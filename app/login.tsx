@@ -29,7 +29,7 @@ export default function LoginScreen() {
     if (!email || !password) return;
     const ok = await login(email, password);
     if (ok) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/calendario');
     }
   };
 

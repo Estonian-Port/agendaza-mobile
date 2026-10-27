@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { CustomResponse } from '@/types/domain';
 
@@ -8,11 +9,18 @@ export const USE_MOCK = (process.env.EXPO_PUBLIC_USE_MOCK ?? 'true') === 'true';
 const TOKEN_KEY = 'agendaza_jwt';
 
 export async function saveToken(token: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    window.localStorage.setItem(TOKEN_KEY, token);
+    return;
+  }
   await SecureStore.setItemAsync(TOKEN_KEY, token);
 }
 
 export async function getToken(): Promise<string | null> {
   try {
+    if (Platform.OS === 'web') {
+      return window.localStorage.getItem(TOKEN_KEY);
+    }
     return await SecureStore.getItemAsync(TOKEN_KEY);
   } catch {
     return null;
@@ -21,6 +29,10 @@ export async function getToken(): Promise<string | null> {
 
 export async function clearToken(): Promise<void> {
   try {
+    if (Platform.OS === 'web') {
+      window.localStorage.removeItem(TOKEN_KEY);
+      return;
+    }
     await SecureStore.deleteItemAsync(TOKEN_KEY);
   } catch {
     // ignore

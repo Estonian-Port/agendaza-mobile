@@ -34,8 +34,6 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'fade' }} />
-        <Stack.Screen name="evento/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="reserva/nueva" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="dark" />
