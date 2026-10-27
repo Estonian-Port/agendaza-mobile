@@ -1,12 +1,9 @@
 import { apiGet, apiPost, apiDelete, apiGetBlob, USE_MOCK } from './api-client';
 import { MedioPago, Pago, ResumenPagosMes } from '@/types/domain';
 import { getMockPagosMes, getMockResumenMes, mockMediosDePago, mockPagos } from './mock-data';
+import { getEmpresaActivaId } from './empresa.service';
 
 const BASE = '/v1/pagos';
-
-function empresaId() {
-  return 1;
-}
 
 export const pagoService = {
   async get(id: number): Promise<Pago> {
@@ -20,17 +17,17 @@ export const pagoService = {
 
   async getAllByMes(mes: number, anio: number): Promise<Pago[]> {
     if (USE_MOCK) return getMockPagosMes(mes, anio);
-    return apiGet<Pago[]>(`${BASE}/empresa/${empresaId()}/mes`, { mes, anio });
+    return apiGet<Pago[]>(`${BASE}/empresa/${getEmpresaActivaId()}/mes`, { mes, anio });
   },
 
   async getAllByEmpresa(pageNumber: number = 0): Promise<Pago[]> {
     if (USE_MOCK) return mockPagos;
-    return apiGet<Pago[]>(`${BASE}/empresa/${empresaId()}`, { page: pageNumber });
+    return apiGet<Pago[]>(`${BASE}/empresa/${getEmpresaActivaId()}`, { page: pageNumber });
   },
 
   async getResumenMes(mes: number, anio: number): Promise<ResumenPagosMes> {
     if (USE_MOCK) return getMockResumenMes(mes, anio);
-    return apiGet<ResumenPagosMes>(`${BASE}/empresa/${empresaId()}/resumen`, { mes, anio });
+    return apiGet<ResumenPagosMes>(`${BASE}/empresa/${getEmpresaActivaId()}/resumen`, { mes, anio });
   },
 
   async getMediosDePago(): Promise<MedioPago[]> {
@@ -41,7 +38,7 @@ export const pagoService = {
   async save(pago: Pago): Promise<Pago> {
     if (USE_MOCK) {
       const newId = 6000 + Math.floor(Math.random() * 1000);
-      return { ...pago, id: newId, empresaId: empresaId() };
+      return { ...pago, id: newId, empresaId: getEmpresaActivaId() };
     }
     return apiPost<Pago>(BASE, pago);
   },
@@ -58,6 +55,6 @@ export const pagoService = {
 
   async enviarEmailPago(pagoId: number, eventoId: number): Promise<boolean> {
     if (USE_MOCK) return true;
-    return apiGet<boolean>(`${BASE}/${pagoId}/email/evento/${eventoId}/empresa/${empresaId()}`);
+    return apiGet<boolean>(`${BASE}/${pagoId}/email/evento/${eventoId}/empresa/${getEmpresaActivaId()}`);
   },
 };

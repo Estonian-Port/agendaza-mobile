@@ -61,6 +61,16 @@ export const mockEmpresa: Empresa = {
   telefono: '+54 11 5555-5555',
 };
 
+export const mockEmpresasAsignadas: Record<number, Empresa[]> = {
+  1: [
+    mockEmpresa,
+    { id: 2, nombre: 'Jardín Los Álamos', direccion: 'Los Álamos 1280', telefono: '+54 11 5555-1280' },
+  ],
+  2: [mockEmpresa],
+  3: [mockEmpresa],
+  4: [mockEmpresa],
+};
+
 export const mockTipoEventos: TipoEvento[] = [
   {
     id: 1,

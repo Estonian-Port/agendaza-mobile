@@ -27,9 +27,11 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setTouched(true);
     if (!email || !password) return;
-    const ok = await login(email, password);
-    if (ok) {
+    const result = await login(email, password);
+    if (result === 'single') {
       router.replace('/(tabs)/calendario');
+    } else if (result === 'multiple') {
+      router.replace('/seleccionar-agenda');
     }
   };
 

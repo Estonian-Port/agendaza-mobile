@@ -12,6 +12,8 @@ export interface Usuario {
   empresaNombre?: string;
 }
 
+export interface EmpresaAsignada extends GenericItem {}
+
 export interface AuthSession {
   token: string;
   usuario: Usuario;

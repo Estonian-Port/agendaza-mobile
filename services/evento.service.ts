@@ -24,12 +24,9 @@ import {
   mockEstadosEvento,
   mockEstadosForNuevo,
 } from './mock-data';
+import { getEmpresaActivaId } from './empresa.service';
 
 const BASE = '/v1/eventos';
-
-function empresaId() {
-  return 1;
-}
 
 export const eventoService = {
   async getEventoVer(eventoId: number): Promise<EventoVer> {
@@ -46,7 +43,7 @@ export const eventoService = {
         capacidadNinos: 20,
         tipoEventoId: 1,
         tipoEventoNombre: 'CASAMIENTO',
-        empresaId: empresaId(),
+        empresaId: getEmpresaActivaId(),
         empresa: 'Salón Real Vista',
         precioTipoEvento: 250000,
         presupuesto: 320000,
@@ -68,7 +65,7 @@ export const eventoService = {
 
   async getAgenda(): Promise<EventoAgenda[]> {
     if (USE_MOCK) return mockAgenda;
-    return apiGet<EventoAgenda[]>(`${BASE}/empresa/${empresaId()}/agenda`);
+    return apiGet<EventoAgenda[]>(`${BASE}/empresa/${getEmpresaActivaId()}/agenda`);
   },
 
   async getAllEventosByFecha(fecha: string): Promise<Evento[]> {
@@ -84,7 +81,7 @@ export const eventoService = {
           capacidadAdultos: 80,
           capacidadNinos: 20,
           tipoEventoId: 1,
-          empresaId: empresaId(),
+          empresaId: getEmpresaActivaId(),
           precioTipoEvento: 250000,
           presupuesto: 320000,
           extraOtro: 0,
@@ -97,12 +94,12 @@ export const eventoService = {
           listaExtraCateringVariable: [],
         }));
     }
-    return apiGet<Evento[]>(`${BASE}/empresa/${empresaId()}/por-fecha`, { fecha });
+    return apiGet<Evento[]>(`${BASE}/empresa/${getEmpresaActivaId()}/por-fecha`, { fecha });
   },
 
   async getOcupacionDelDia(fechaEvento: string): Promise<string[]> {
     if (USE_MOCK) return mockEventosOcupacion[fechaEvento] ?? [];
-    return apiGet<string[]>(`${BASE}/empresa/${empresaId()}/ocupacion-del-dia`, { fechaEvento });
+    return apiGet<string[]>(`${BASE}/empresa/${getEmpresaActivaId()}/ocupacion-del-dia`, { fechaEvento });
   },
 
   async getHorarioDisponible(desde: string, hasta: string): Promise<boolean> {
@@ -119,7 +116,7 @@ export const eventoService = {
       });
     }
     return apiGet<boolean>(`${BASE}/disponibilidad/validar`, {
-      empresaId,
+      empresaId: getEmpresaActivaId(),
       desde,
       hasta,
     });
