@@ -6,6 +6,24 @@ import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { SplashScreen } from 'expo-router';
 import { AuthProvider } from '@/context/AuthContext';
+import { LocaleConfig } from 'react-native-calendars';
+
+LocaleConfig.locales.es = {
+  monthNames: [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  ],
+  monthNamesShort: [
+    'ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
+    'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.',
+  ],
+  dayNames: [
+    'domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado',
+  ],
+  dayNamesShort: ['dom.', 'lun.', 'mar.', 'mié.', 'jue.', 'vie.', 'sáb.'],
+  today: 'Hoy',
+};
+LocaleConfig.defaultLocale = 'es';
 
 SplashScreen.preventAutoHideAsync();
 

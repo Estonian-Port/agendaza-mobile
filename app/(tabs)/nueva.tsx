@@ -46,7 +46,7 @@ import {
   TipoEvento,
 } from '@/types/domain';
 
-const STEPS = ['Tipo', 'Evento', 'Cotización', 'Catering', 'Contacto'];
+const STEPS = ['Tipo', 'Fecha', 'Cotización', 'Catering', 'Contacto'];
 const DURATIONS: { label: string; value: Duracion }[] = [
   { label: 'Corto', value: 'CORTO' },
   { label: 'Medio', value: 'MEDIO' },
@@ -611,7 +611,14 @@ export default function NuevaReservaScreen() {
                 <View style={[styles.stepDot, index === step && styles.stepDotCurrent, index < step && styles.stepDotDone]}>
                   {index < step ? <Check size={14} color={Colors.white} strokeWidth={3} /> : <Text style={[styles.stepNumber, index === step && styles.stepNumberCurrent]}>{index + 1}</Text>}
                 </View>
-                <Text style={[styles.stepLabel, index === step && styles.stepLabelCurrent]}>{label}</Text>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  style={[styles.stepLabel, index === step && styles.stepLabelCurrent]}
+                >
+                  {label}
+                </Text>
               </Pressable>
               {index < STEPS.length - 1 && <View style={[styles.stepLine, index < step && styles.stepLineDone]} />}
             </React.Fragment>
@@ -1029,7 +1036,7 @@ const styles = StyleSheet.create({
   stepDotDone: { backgroundColor: Colors.success },
   stepNumber: { color: Colors.neutralText, fontFamily: 'Inter-SemiBold', fontSize: 12 },
   stepNumberCurrent: { color: Colors.white },
-  stepLabel: { color: Colors.text, fontFamily: 'Inter-Medium', fontSize: 10, marginTop: 5 },
+  stepLabel: { color: Colors.text, fontFamily: 'Inter-Medium', fontSize: 9, marginTop: 5 },
   stepLabelCurrent: { color: Colors.textDark, fontFamily: 'Inter-Bold' },
   stepLine: { flex: 1, height: 2, backgroundColor: '#dce2df', marginHorizontal: 2, marginBottom: 17 },
   stepLineDone: { backgroundColor: Colors.success },

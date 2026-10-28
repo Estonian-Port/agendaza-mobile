@@ -184,8 +184,8 @@ export default function CalendarioScreen() {
           searchType={searchType}
           value={searchType === 'CODIGO' ? searchCode : searchDate}
           onChangeText={searchType === 'CODIGO' ? setSearchCode : setSearchDate}
-          dateLabel="Fecha (AAAA-MM-DD)"
-          datePlaceholder="2026-10-27"
+          dateLabel="Fecha del evento"
+          datePlaceholder="Elegir fecha"
           loading={searchLoading}
           onSearch={() => void buscarEvento()}
         />
