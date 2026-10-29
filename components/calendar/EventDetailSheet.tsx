@@ -373,7 +373,7 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
               </>
             ) : (
               <>
-                <Text style={styles.sectionTitle}>Tipo de catering</Text>
+                <Text style={styles.sectionTitle}>Menú</Text>
                 {cateringTypes.map((extra) => {
                   const selectedExtra = event.listaExtraTipoCatering.find((item) => item.id === extra.id);
                   return <ExtraOption
@@ -539,7 +539,6 @@ function VariableExtraOption({ extra, quantity, onPriceChange, onQuantityChange 
     <View style={styles.extraOption}>
       <View style={styles.variableDescription}>
         <Text style={styles.extraName}>{extra.nombre}</Text>
-        <Text style={styles.extraPrice}>Por unidad</Text>
       </View>
       <PriceEditor value={extra.precio} onChange={onPriceChange} />
       <Stepper label="" value={quantity} min={0} max={500} onChange={onQuantityChange} />
@@ -563,8 +562,7 @@ const styles = StyleSheet.create({
   selectedExtra: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
   emptyExtras: { paddingVertical: 8, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.disabledText },
   customCatering: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
-  extraOption: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  extraCheckbox: { flex: 1 },
+  extraOption: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },  extraCheckbox: { flex: 1 },
   variableDescription: { flex: 1 },
   extraName: { flex: 1, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textDark },
   extraPrice: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.text },

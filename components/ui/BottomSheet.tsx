@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Modal, PanResponder, StyleSheet, View, Pressable, ScrollView } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, StyleSheet, View, Pressable, ScrollView, type ScrollViewInstance } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/theme';
 import { Text } from 'react-native';
+import { KeyboardScrollProvider } from '@/components/ui/KeyboardScrollContext';
 
 interface BottomSheetProps {
   open: boolean;
@@ -15,6 +16,7 @@ interface BottomSheetProps {
 export function BottomSheet({ open, onClose, title, children, height = '65%' }: BottomSheetProps) {
   const translateY = useRef(new Animated.Value(0)).current;
   const contentScrollY = useRef(0);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, gesture) =>
       gesture.dy > 5 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (gesture.y0 <= 200 || contentScrollY.current <= 0),
@@ -57,14 +59,22 @@ export function BottomSheet({ open, onClose, title, children, height = '65%' }: 
               </Pressable>
             </View>
           <View style={styles.divider} />
-          <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            onScroll={(event) => { contentScrollY.current = event.nativeEvent.contentOffset.y; }}
-            scrollEventThrottle={16}
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoiding}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            {children}
-          </ScrollView>
+            <ScrollView
+              ref={scrollRef}
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+              onScroll={(event) => { contentScrollY.current = event.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={16}
+            >
+              <KeyboardScrollProvider scrollRef={scrollRef}>
+                {children}
+              </KeyboardScrollProvider>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Animated.View>
       </View>
     </Modal>
@@ -118,6 +128,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.neutralBorder,
   },
+  keyboardAvoiding: { flex: 1 },
   content: {
     padding: 20,
   },

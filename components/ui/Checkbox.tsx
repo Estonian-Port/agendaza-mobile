@@ -105,7 +105,6 @@ export function Checkbox({
         </View>
         <View style={styles.text}>
           <Text style={[Typography.body, styles.label]}>{label}</Text>
-          {description && <Text style={[Typography.caption, styles.description]}>{description}</Text>}
           {rightText && priceValue === undefined && <Text style={[Typography.body, styles.rightText]}>{rightText}</Text>}
         </View>
       </Pressable>

@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   Image,
+  type ScrollViewInstance,
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -17,9 +16,11 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { KeyboardScrollProvider } from '@/components/ui/KeyboardScrollContext';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const { usuario, agendas, login, loading, error } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -46,15 +47,14 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.flex}>
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <KeyboardScrollProvider scrollRef={scrollRef}>
         <Card radius="panel" shadow="soft" style={styles.loginCard}>
           <Image
             source={require('../assets/images/icon.png')}
@@ -62,7 +62,7 @@ export default function LoginScreen() {
             resizeMode="contain"
           />
           <Text style={styles.brand}>Agendaza</Text>
-          <Text style={styles.tagline}>Gestión de salones y eventos</Text>
+          <Text style={styles.tagline}></Text>
 
           <View style={styles.inputWrap}>
             <Input
@@ -109,10 +109,10 @@ export default function LoginScreen() {
             style={styles.submitBtn}
           />
         </Card>
-
+        </KeyboardScrollProvider>
       </ScrollView>
       <Text style={styles.appVersion}>v{Constants.expoConfig?.version}</Text>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

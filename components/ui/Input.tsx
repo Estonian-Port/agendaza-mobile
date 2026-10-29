@@ -1,6 +1,7 @@
-import React, { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native';
+import React, { ReactNode, useRef } from 'react';
+import { findNodeHandle, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance, type ViewStyle } from 'react-native';
 import { Colors, Radius, Typography } from '@/constants/theme';
+import { useKeyboardScrollFocus } from '@/components/ui/KeyboardScrollContext';
 
 interface InputProps {
   label?: string;
@@ -18,6 +19,7 @@ interface InputProps {
   numberOfLines?: number;
   style?: ViewStyle;
   onBlur?: () => void;
+  onFocus?: (inputHandle: number) => void;
 }
 
 export function Input({
@@ -36,7 +38,10 @@ export function Input({
   numberOfLines = 1,
   style,
   onBlur,
+  onFocus,
 }: InputProps) {
+  const inputRef = useRef<TextInputInstance>(null);
+  const keyboardScrollFocus = useKeyboardScrollFocus();
   const showError = !!error && touched;
   return (
     <View style={styles.wrapper}>
@@ -51,6 +56,7 @@ export function Input({
       >
         {prefix && <View style={styles.prefix}>{prefix}</View>}
         <TextInput
+          ref={inputRef}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -61,6 +67,14 @@ export function Input({
           multiline={multiline}
           numberOfLines={numberOfLines}
           onBlur={onBlur}
+          onFocus={() => {
+            const input = inputRef.current;
+            const inputHandle = findNodeHandle(input);
+            if (input && inputHandle != null) {
+              if (keyboardScrollFocus) keyboardScrollFocus(inputHandle, input);
+              else onFocus?.(inputHandle);
+            }
+          }}
           style={[Typography.body, styles.input, !editable && styles.inputDisabled]}
         />
         {suffix && <View style={styles.suffix}>{suffix}</View>}

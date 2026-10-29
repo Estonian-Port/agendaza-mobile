@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { findNodeHandle, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { Colors, Radius, Typography } from '@/constants/theme';
+import { useKeyboardScrollFocus } from '@/components/ui/KeyboardScrollContext';
 
 interface StepperProps {
   label: string;
@@ -10,10 +11,13 @@ interface StepperProps {
   max?: number;
   step?: number;
   editable?: boolean;
+  onFocus?: (inputHandle: number) => void;
 }
 
-export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, editable = false }: StepperProps) {
+export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, editable = false, onFocus }: StepperProps) {
   const [draft, setDraft] = useState(String(value));
+  const inputRef = useRef<TextInputInstance>(null);
+  const keyboardScrollFocus = useKeyboardScrollFocus();
 
   useEffect(() => {
     setDraft(String(value));
@@ -41,7 +45,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, 
 
   return (
     <View style={styles.wrapper}>
-      <Text style={[Typography.caption, styles.label]}>{label}</Text>
+      {!!label && <Text style={[Typography.caption, styles.label]}>{label}</Text>}
       <View style={styles.container}>
         {!editable && (
           <Pressable onPress={dec} disabled={value <= min} style={[styles.btn, value <= min && styles.btnDisabled]}>
@@ -50,10 +54,19 @@ export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, 
         )}
         {editable ? (
           <TextInput
+            ref={inputRef}
             accessibilityLabel={label}
             keyboardType="number-pad"
             value={draft}
             onChangeText={handleTextChange}
+            onFocus={() => {
+              const input = inputRef.current;
+              const inputHandle = findNodeHandle(input);
+              if (input && inputHandle != null) {
+                if (keyboardScrollFocus) keyboardScrollFocus(inputHandle, input);
+                else onFocus?.(inputHandle);
+              }
+            }}
             onBlur={commitDraft}
             style={[Typography.heading, styles.value]}
           />

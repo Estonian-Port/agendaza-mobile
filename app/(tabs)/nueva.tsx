@@ -1,12 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { FormikErrors, useFormik } from 'formik';
@@ -27,6 +30,7 @@ import { Checkbox, PriceEditor } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectOption } from '@/components/ui/Select';
 import { Stepper } from '@/components/ui/Stepper';
+import { KeyboardScrollProvider } from '@/components/ui/KeyboardScrollContext';
 import { globalStyles } from '@/constants/styles';
 import { Colors, Radius, Shadow } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
@@ -165,6 +169,7 @@ function getStepErrors(values: ReservationValues, step: number): FormikErrors<Re
 
 export default function NuevaReservaScreen() {
   const { usuario, notifyAgendaChanged } = useAuth();
+  const reservationScrollRef = useRef<ScrollViewInstance>(null);
   const [step, setStep] = useState(0);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -621,11 +626,16 @@ export default function NuevaReservaScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
+        ref={reservationScrollRef}
         contentContainerStyle={[globalStyles.screenContent, styles.content]}
         keyboardShouldPersistTaps="handled"
       >
+        <KeyboardScrollProvider scrollRef={reservationScrollRef}>
         <Card radius="panel" shadow="soft" style={styles.heading}>
           <View style={styles.headingText}>
             <Text style={styles.title}>Nueva reserva</Text>
@@ -1023,6 +1033,7 @@ export default function NuevaReservaScreen() {
             />
           )}
         </View>
+        </KeyboardScrollProvider>
       </ScrollView>
 
       <Modal visible={datePickerOpen} transparent animationType="slide" onRequestClose={() => setDatePickerOpen(false)}>
@@ -1058,7 +1069,7 @@ export default function NuevaReservaScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
