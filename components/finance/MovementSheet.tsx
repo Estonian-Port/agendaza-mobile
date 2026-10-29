@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { CalendarDays, Check } from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, Check } from 'lucide-react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { EventCard } from '@/components/calendar/EventCard';
 import { EventSearchFields } from '@/components/calendar/EventSearchFields';
@@ -20,6 +20,9 @@ interface MovementSheetProps {
   open: boolean;
   initialType: TipoMovimiento;
   initialEvent?: Evento | null;
+  initialPago?: Pago | null;
+  initialGasto?: Gasto | null;
+  embedded?: boolean;
   usuario: Usuario;
   onClose: () => void;
   onSaved: () => void;
@@ -43,7 +46,7 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'Ocurrió un error inesperado.';
 }
 
-export function MovementSheet({ open, initialType, initialEvent = null, usuario, onClose, onSaved }: MovementSheetProps) {
+export function MovementSheet({ open, initialType, initialEvent = null, initialPago = null, initialGasto = null, embedded = false, usuario, onClose, onSaved }: MovementSheetProps) {
   const [tipo, setTipo] = useState<TipoMovimiento>(initialType);
   const [tipoBusqueda, setTipoBusqueda] = useState<TipoBusqueda>('FECHA');
   const [codigo, setCodigo] = useState('');
@@ -72,21 +75,23 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
   const [cargandoEvento, setCargandoEvento] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const isEditing = initialPago !== null || initialGasto !== null;
 
   useEffect(() => {
     if (!open) return;
-    setTipo(initialType);
+    const activeType = initialPago ? 'PAGO' : initialGasto ? 'GASTO' : initialType;
+    setTipo(activeType);
     setTipoBusqueda('FECHA');
     setCodigo('');
     setFecha(fechaHoy());
     setEventos([]);
     setEvento(initialEvent);
-    setPagoBase(null);
-    setMonto('');
-    setMedioDePago('');
-    setConcepto('');
-    setNumeroCuota('');
-    setGasto({
+    setPagoBase(initialPago);
+    setMonto(initialPago ? String(initialPago.monto) : initialGasto ? String(initialGasto.monto) : '');
+    setMedioDePago(initialPago?.medioDePago || initialPago?.medioPago || initialGasto?.medioDePago || '');
+    setConcepto(initialPago?.concepto || '');
+    setNumeroCuota(initialPago?.numeroCuota ?? '');
+    setGasto(initialGasto ? { ...initialGasto } : {
       id: 0,
       monto: 0,
       tipoGasto: '',
@@ -109,10 +114,14 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
         setMediosPago(medios);
         setConceptos(conceptosDisponibles);
         setTiposGasto(tiposDisponibles);
-        setMedioDePago(medios[0] ?? '');
-        setConcepto(conceptosDisponibles[0] ?? '');
-        setGasto((actual) => ({ ...actual, tipoGasto: tiposDisponibles[0] ?? 'OTROS', medioDePago: medios[0] }));
-        if (initialEvent && initialType === 'PAGO') {
+        setMedioDePago((current) => current || medios[0] || '');
+        setConcepto((current) => current || conceptosDisponibles[0] || '');
+        setGasto((actual) => ({
+          ...actual,
+          tipoGasto: initialGasto ? actual.tipoGasto : tiposDisponibles[0] ?? 'OTROS',
+          medioDePago: actual.medioDePago || medios[0],
+        }));
+        if (initialEvent && activeType === 'PAGO' && !initialPago) {
           const basePago = await pagoService.getEventoForSavePago(initialEvent.id);
           setPagoBase(basePago);
           setMonto(basePago.monto > 0 ? String(basePago.monto) : '');
@@ -123,7 +132,7 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
       })
       .catch((cause) => setError(errorText(cause)))
       .finally(() => setCargandoOpciones(false));
-  }, [open, initialType, initialEvent?.id, usuario.empresaId, usuario.id]);
+  }, [open, initialType, initialEvent?.id, initialPago?.id, initialGasto?.id, usuario.empresaId, usuario.id]);
 
   const cambiarTipo = (nuevoTipo: TipoMovimiento) => {
     setTipo(nuevoTipo);
@@ -223,6 +232,7 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
       try {
         await pagoService.save({
           ...pagoBase,
+          eventoId: evento.id,
           monto: montoNumerico,
           medioDePago,
           concepto,
@@ -268,9 +278,16 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
   const mediosOptions: SelectOption[] = mediosPago.map((value) => ({ label: formatOption(value), value }));
   const tiposOptions: SelectOption[] = tiposGasto.map((value) => ({ label: formatOption(value), value }));
 
-  return (
-    <BottomSheet open={open} onClose={onClose} title={tipo === 'PAGO' ? 'Registrar pago' : 'Registrar gasto'} height="92%">
-      <View style={styles.typeSwitch}>
+  const content = (
+    <>
+      {embedded && <Button
+        label="Volver a estado de cuenta"
+        variant="ghost"
+        size="sm"
+        icon={<ArrowLeft size={16} color={Colors.primary} />}
+        onPress={onClose}
+      />}
+      {!isEditing && <View style={styles.typeSwitch}>
         {(['PAGO', 'GASTO'] as const).map((value) => {
           const selected = tipo === value;
           return (
@@ -287,7 +304,7 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
             </Pressable>
           );
         })}
-      </View>
+      </View>}
 
       {cargandoOpciones ? (
         <ActivityIndicator color={Colors.primary} style={styles.loader} />
@@ -306,8 +323,8 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
               start={evento.inicio}
               end={evento.fin}
               status={evento.estado}
-              accessory={<Text style={styles.changeEventText}>Cambiar</Text>}
-              onPress={quitarEvento}
+              accessory={!isEditing ? <Text style={styles.changeEventText}>Cambiar</Text> : undefined}
+              onPress={isEditing ? () => undefined : quitarEvento}
             />
           ) : (
             <>
@@ -375,7 +392,7 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
 
           {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
           <Button
-            label={tipo === 'PAGO' ? 'Guardar pago' : 'Guardar gasto'}
+            label={isEditing ? 'Guardar cambios' : tipo === 'PAGO' ? 'Guardar pago' : 'Guardar gasto'}
             icon={<Check size={17} color={Colors.white} />}
             onPress={() => void guardar()}
             loading={guardando}
@@ -385,6 +402,14 @@ export function MovementSheet({ open, initialType, initialEvent = null, usuario,
           />
         </>
       )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title={isEditing ? (tipo === 'PAGO' ? 'Editar pago' : 'Editar gasto') : tipo === 'PAGO' ? 'Registrar pago' : 'Registrar gasto'} height="92%">
+      {content}
     </BottomSheet>
   );
 }

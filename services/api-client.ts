@@ -44,6 +44,13 @@ const api: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+function unwrapResponse<T>(response: CustomResponse<T> | T): T {
+  if (typeof response === 'object' && response !== null && 'data' in response) {
+    return (response.data ?? response) as T;
+  }
+  return response as T;
+}
+
 api.interceptors.request.use(async (config) => {
   const token = await getToken();
   if (token && !config.url?.endsWith('/login')) {
@@ -64,28 +71,28 @@ api.interceptors.response.use(
 
 export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
   const config: AxiosRequestConfig = params ? { params } : {};
-  const res = await api.get<CustomResponse<T>>(url, config);
-  return res.data.data ?? res.data;
+  const res = await api.get<CustomResponse<T> | T>(url, config);
+  return unwrapResponse(res.data);
 }
 
 export async function apiPost<T>(url: string, body?: unknown): Promise<T> {
-  const res = await api.post<CustomResponse<T>>(url, body);
-  return res.data.data ?? res.data;
+  const res = await api.post<CustomResponse<T> | T>(url, body);
+  return unwrapResponse(res.data);
 }
 
 export async function apiPut<T>(url: string, body?: unknown): Promise<T> {
-  const res = await api.put<CustomResponse<T>>(url, body);
-  return res.data.data ?? res.data;
+  const res = await api.put<CustomResponse<T> | T>(url, body);
+  return unwrapResponse(res.data);
 }
 
 export async function apiPatch<T>(url: string, body?: unknown): Promise<T> {
-  const res = await api.patch<CustomResponse<T>>(url, body);
-  return res.data.data ?? res.data;
+  const res = await api.patch<CustomResponse<T> | T>(url, body);
+  return unwrapResponse(res.data);
 }
 
 export async function apiDelete<T>(url: string): Promise<T> {
-  const res = await api.delete<CustomResponse<T>>(url);
-  return res.data.data ?? res.data;
+  const res = await api.delete<CustomResponse<T> | T>(url);
+  return unwrapResponse(res.data);
 }
 
 export async function apiGetBlob(url: string): Promise<Blob> {

@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './api-client';
+import { apiDelete, apiGet, apiPost } from './api-client';
 import { Gasto } from '@/types/domain';
 import { getEmpresaActivaId } from './empresa.service';
 
@@ -17,6 +17,10 @@ export const gastoService = {
     return apiGet<Gasto[]>(`${BASE}/empresa/${getEmpresaActivaId()}/mes`, { mes, anio });
   },
 
+  async getAllByEvento(eventoId: number): Promise<Gasto[]> {
+    return apiGet<Gasto[]>(`${BASE}/evento/${eventoId}`);
+  },
+
   async save(gasto: Gasto, usuarioId: number): Promise<Gasto> {
     const payload = {
       ...gasto,
@@ -25,5 +29,9 @@ export const gastoService = {
       codigoEvento: gasto.codigoEvento?.trim() || undefined,
     };
     return apiPost<Gasto>(BASE, payload);
+  },
+
+  async delete(id: number): Promise<void> {
+    await apiDelete(`${BASE}/${id}`);
   },
 };

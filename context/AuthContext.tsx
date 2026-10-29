@@ -7,8 +7,12 @@ interface AuthContextValue {
   usuario: Usuario | null;
   token: string | null;
   agendas: Empresa[];
+  agendaRevision: number;
+  financeRevision: number;
   loading: boolean;
   error: string | null;
+  notifyAgendaChanged: () => void;
+  notifyFinanceChanged: () => void;
   login: (username: string, password: string) => Promise<'single' | 'multiple' | false>;
   selectAgenda: (agenda: Empresa) => Promise<void>;
   logout: () => Promise<void>;
@@ -21,6 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [agendas, setAgendas] = useState<Empresa[]>([]);
+  const [agendaRevision, setAgendaRevision] = useState(0);
+  const [financeRevision, setFinanceRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAgendas([]);
   }, []);
 
+  const notifyAgendaChanged = useCallback(() => {
+    setAgendaRevision((revision) => revision + 1);
+  }, []);
+
+  const notifyFinanceChanged = useCallback(() => {
+    setFinanceRevision((revision) => revision + 1);
+  }, []);
+
   const canAccess = useCallback(
     (roles: Rol[]) => {
       if (!usuario) return false;
@@ -89,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ usuario, token, agendas, loading, error, login, selectAgenda, logout, canAccess }}
+      value={{ usuario, token, agendas, agendaRevision, financeRevision, loading, error, notifyAgendaChanged, notifyFinanceChanged, login, selectAgenda, logout, canAccess }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,26 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeft, Check, Circle, CreditCard, Receipt, Save } from 'lucide-react-native';
+import { ArrowLeft, Check, Save } from 'lucide-react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Stepper } from '@/components/ui/Stepper';
+import { Checkbox, PriceEditor } from '@/components/ui/Checkbox';
 import { Colors, Radius } from '@/constants/theme';
 import { eventoService } from '@/services/evento.service';
 import { Duracion, EventoVer, Extra } from '@/types/domain';
 import { extraService } from '@/services/extra.service';
 import { empresaService } from '@/services/empresa.service';
 
-type MovementType = 'PAGO' | 'GASTO';
 type EditorSection = 'EXTRAS' | 'CATERING';
 const EVENT_DURATIONS: Duracion[] = ['CORTO', 'MEDIO', 'LARGO'];
 
 interface EventDetailSheetProps {
   open: boolean;
   eventId: number | null;
+  accountOpen: boolean;
+  showAccountBackButton: boolean;
+  accountTitle: string;
+  accountContent: React.ReactNode;
   onClose: () => void;
+  onCloseAccount: () => void;
   onUpdated: () => void;
-  onAddMovement: (type: MovementType, event: EventoVer) => void;
+  onOpenAccount: (event: EventoVer) => void;
 }
 
 function localDateKey(value: string) {
@@ -54,7 +59,7 @@ function normalizeTypeName(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('es');
 }
 
-export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovement }: EventDetailSheetProps) {
+export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackButton, accountTitle, accountContent, onClose, onCloseAccount, onUpdated, onOpenAccount }: EventDetailSheetProps) {
   const [event, setEvent] = useState<EventoVer | null>(null);
   const [fixedExtras, setFixedExtras] = useState<Extra[]>([]);
   const [variableExtras, setVariableExtras] = useState<Extra[]>([]);
@@ -168,13 +173,38 @@ export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovem
 
   const setExtraQuantity = (
     list: 'listaExtraVariable' | 'listaExtraCateringVariable',
-    extraId: number,
+    option: Extra,
     quantity: number,
+  ) => {
+    setEvent((current) => {
+      if (!current) return current;
+      const currentItems = current[list];
+      const selected = currentItems.some((item) => item.id === option.id);
+      return {
+        ...current,
+        [list]: quantity === 0
+          ? currentItems.filter((item) => item.id !== option.id)
+          : selected
+            ? currentItems.map((item) => item.id === option.id ? { ...item, cantidad: quantity } : item)
+            : [...currentItems, { ...option, cantidad: quantity }],
+      };
+    });
+  };
+
+  const setExtraPrice = (
+    list: keyof Pick<EventoVer, 'listaExtra' | 'listaExtraVariable' | 'listaExtraTipoCatering' | 'listaExtraCateringVariable'>,
+    extraId: number,
+    price: number,
   ) => {
     setEvent((current) => current ? {
       ...current,
-      [list]: current[list].map((item) => item.id === extraId ? { ...item, cantidad: quantity } : item),
+      [list]: current[list].map((item) => item.id === extraId ? { ...item, precio: price } : item),
     } : current);
+    const updateCatalog = (items: Extra[]) => items.map((item) => item.id === extraId ? { ...item, precio: price } : item);
+    if (list === 'listaExtra') setFixedExtras(updateCatalog);
+    if (list === 'listaExtraVariable') setVariableExtras(updateCatalog);
+    if (list === 'listaExtraTipoCatering') setCateringTypes(updateCatalog);
+    if (list === 'listaExtraCateringVariable') setCateringExtras(updateCatalog);
   };
 
   const save = async () => {
@@ -231,18 +261,38 @@ export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovem
     setSaving(true);
     try {
       if (editingSection === 'EXTRAS') {
+        if (event.tipoEventoId === undefined) {
+          throw new Error('No se pudo identificar el tipo de evento para guardar los extras.');
+        }
         await eventoService.editEventoExtra({
           id: event.id,
-          listaExtra: event.listaExtra,
-          listaExtraVariable: event.listaExtraVariable,
+          nombre: event.nombre,
+          codigo: event.codigo,
+          extraOtro: event.extraOtro,
+          extraOtroDescripcion: event.extraOtroDescripcion,
+          listaEventoExtra: [...event.listaExtra, ...event.listaExtraVariable],
+          tipoEventoExtra: {
+            id: event.tipoEventoId,
+            nombre: event.tipoEventoNombre ?? '',
+            precio: event.precioTipoEvento,
+          },
+          fechaEvento: event.inicio,
         });
       } else {
+        if (event.tipoEventoId === undefined) {
+          throw new Error('No se pudo identificar el tipo de evento para guardar el catering.');
+        }
         await eventoService.editEventoCatering({
           id: event.id,
-          listaExtraTipoCatering: event.listaExtraTipoCatering,
-          listaExtraCateringVariable: event.listaExtraCateringVariable,
+          nombre: event.nombre,
+          codigo: event.codigo,
           cateringOtro: event.cateringOtro,
           cateringOtroDescripcion: event.cateringOtroDescripcion,
+          listaExtra: [...event.listaExtraTipoCatering, ...event.listaExtraCateringVariable],
+          tipoEventoId: event.tipoEventoId,
+          fechaEvento: event.inicio,
+          capacidadAdultos: event.capacidadAdultos,
+          capacidadNinos: event.capacidadNinos,
         });
       }
       setEditingSection(null);
@@ -255,9 +305,22 @@ export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovem
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={editingSection ? (editingSection === 'EXTRAS' ? 'Editar extras' : 'Editar catering') : 'Ver evento'} height="94%">
+    <BottomSheet open={open} onClose={onClose} title={accountOpen ? accountTitle : editingSection ? (editingSection === 'EXTRAS' ? 'Editar extras' : 'Editar catering') : 'Ver evento'} height="94%">
       {loading ? <ActivityIndicator color={Colors.primary} style={styles.loader} /> : !event ? (
         <Text style={styles.error}>{error || 'No se pudo cargar el evento.'}</Text>
+      ) : accountOpen ? (
+        <>
+          {showAccountBackButton && (
+            <Button
+              label="Volver al evento"
+              variant="ghost"
+              size="sm"
+              icon={<ArrowLeft size={16} color={Colors.primary} />}
+              onPress={onCloseAccount}
+            />
+          )}
+          {accountContent}
+        </>
       ) : editingSection ? (
         <>
           <Button
@@ -271,38 +334,70 @@ export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovem
             editingSection === 'EXTRAS' ? (
               <>
                 <Text style={styles.sectionTitle}>Fijos</Text>
-                {fixedExtras.map((extra) => (
-                  <ExtraOption key={extra.id} extra={extra} selected={event.listaExtra.some((item) => item.id === extra.id)} onPress={() => toggleExtra('listaExtra', extra)} />
-                ))}
-                <Text style={styles.sectionTitle}>Variables</Text>
-                {variableExtras.map((extra) => (
-                  <ExtraOption
+                {fixedExtras.map((extra) => {
+                  const selectedExtra = event.listaExtra.find((item) => item.id === extra.id);
+                  return <ExtraOption
                     key={extra.id}
-                    extra={extra}
-                    selected={event.listaExtraVariable.some((item) => item.id === extra.id)}
-                    quantity={event.listaExtraVariable.find((item) => item.id === extra.id)?.cantidad}
-                    onQuantityChange={(quantity) => setExtraQuantity('listaExtraVariable', extra.id, quantity)}
-                    onPress={() => toggleExtra('listaExtraVariable', extra)}
-                  />
-                ))}
+                    extra={selectedExtra ?? extra}
+                    selected={!!selectedExtra}
+                    onPriceChange={(price) => setExtraPrice('listaExtra', extra.id, price)}
+                    onPress={() => toggleExtra('listaExtra', extra)}
+                  />;
+                })}
+                <Text style={styles.sectionTitle}>Variables</Text>
+                {variableExtras.map((extra) => {
+                  const selectedExtra = event.listaExtraVariable.find((item) => item.id === extra.id);
+                  return (
+                    <VariableExtraOption
+                      key={extra.id}
+                      extra={selectedExtra ?? extra}
+                      quantity={selectedExtra?.cantidad ?? 0}
+                      onPriceChange={(price) => setExtraPrice('listaExtraVariable', extra.id, price)}
+                      onQuantityChange={(quantity) => setExtraQuantity('listaExtraVariable', selectedExtra ?? extra, quantity)}
+                    />
+                  );
+                })}
+                <Text style={styles.sectionTitle}>Otro extra</Text>
+                <Input
+                  label="Importe"
+                  value={String(event.extraOtro || '')}
+                  onChangeText={(value) => setEvent((current) => current ? { ...current, extraOtro: Number(value.replace(',', '.')) || 0 } : current)}
+                  keyboardType="numeric"
+                />
+                <Input
+                  label="Descripción"
+                  value={event.extraOtroDescripcion ?? ''}
+                  onChangeText={(value) => setEvent((current) => current ? { ...current, extraOtroDescripcion: value } : current)}
+                  placeholder="Descripción"
+                />
               </>
             ) : (
               <>
                 <Text style={styles.sectionTitle}>Tipo de catering</Text>
-                {cateringTypes.map((extra) => (
-                  <ExtraOption key={extra.id} extra={extra} selected={event.listaExtraTipoCatering.some((item) => item.id === extra.id)} onPress={() => toggleExtra('listaExtraTipoCatering', extra)} />
-                ))}
-                <Text style={styles.sectionTitle}>Extras de catering</Text>
-                {cateringExtras.map((extra) => (
-                  <ExtraOption
+                {cateringTypes.map((extra) => {
+                  const selectedExtra = event.listaExtraTipoCatering.find((item) => item.id === extra.id);
+                  return <ExtraOption
                     key={extra.id}
-                    extra={extra}
-                    selected={event.listaExtraCateringVariable.some((item) => item.id === extra.id)}
-                    quantity={event.listaExtraCateringVariable.find((item) => item.id === extra.id)?.cantidad}
-                    onQuantityChange={(quantity) => setExtraQuantity('listaExtraCateringVariable', extra.id, quantity)}
-                    onPress={() => toggleExtra('listaExtraCateringVariable', extra)}
-                  />
-                ))}
+                    extra={selectedExtra ?? extra}
+                    selected={!!selectedExtra}
+                    priceMultiplier={selectedExtra?.cantidad}
+                    onPriceChange={(price) => setExtraPrice('listaExtraTipoCatering', extra.id, price)}
+                    onPress={() => toggleExtra('listaExtraTipoCatering', extra)}
+                  />;
+                })}
+                <Text style={styles.sectionTitle}>Extras de catering</Text>
+                {cateringExtras.map((extra) => {
+                  const selectedExtra = event.listaExtraCateringVariable.find((item) => item.id === extra.id);
+                  return (
+                    <VariableExtraOption
+                      key={extra.id}
+                      extra={selectedExtra ?? extra}
+                      quantity={selectedExtra?.cantidad ?? 0}
+                      onPriceChange={(price) => setExtraPrice('listaExtraCateringVariable', extra.id, price)}
+                      onQuantityChange={(quantity) => setExtraQuantity('listaExtraCateringVariable', selectedExtra ?? extra, quantity)}
+                    />
+                  );
+                })}
                 <Input
                   label="Catering personalizado"
                   value={event.cateringOtroDescripcion ?? ''}
@@ -353,12 +448,22 @@ export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovem
           <View style={styles.clientPanel}>
             <Text style={styles.clientName}>{event.cliente.nombre} {event.cliente.apellido}</Text>
             {!!event.cliente.celular && <Text style={styles.clientMeta}>{event.cliente.celular}</Text>}
-            {!!event.cliente.email && <Text style={styles.clientMeta}>{event.cliente.email}</Text>}
+            {!!event.cliente.email && (
+              <Text style={styles.clientMeta}>
+                {event.cliente.email.startsWith('sin-email') ? 'Sin email' : event.cliente.email}
+              </Text>
+            )}
           </View>
 
           <Text style={styles.sectionTitle}>Extras</Text>
           <SelectedExtraList title="Fijos" items={event.listaExtra} />
           <SelectedExtraList title="Variables" items={event.listaExtraVariable} />
+          {(event.extraOtroDescripcion || event.extraOtro > 0) && (
+            <View style={styles.customCatering}>
+              <Text style={styles.extraName}>{event.extraOtroDescripcion || 'Otro extra'}</Text>
+              <Text style={styles.extraPrice}>{formatCurrency(event.extraOtro)}</Text>
+            </View>
+          )}
           <Button label="Editar extras" variant="outline" onPress={() => void openEditor('EXTRAS')} fullWidth />
 
           <Text style={styles.sectionTitle}>Catering</Text>
@@ -374,10 +479,7 @@ export function EventDetailSheet({ open, eventId, onClose, onUpdated, onAddMovem
 
           {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
           <Button label="Guardar cambios" icon={<Save size={17} color={Colors.white} />} onPress={() => void save()} loading={saving} fullWidth style={styles.saveButton} />
-          <View style={styles.movementActions}>
-            <Button label="Cargar pago" variant="outline" icon={<CreditCard size={16} color={Colors.primary} />} onPress={() => onAddMovement('PAGO', event)} style={styles.movementButton} />
-            <Button label="Cargar gasto" variant="outline" icon={<Receipt size={16} color={Colors.primary} />} onPress={() => onAddMovement('GASTO', event)} style={styles.movementButton} />
-          </View>
+          <Button label="Estado de cuenta" variant="outline" onPress={() => onOpenAccount(event)} fullWidth style={styles.movementActions} />
         </>
       )}
     </BottomSheet>
@@ -398,22 +500,49 @@ function SelectedExtraList({ title, items }: { title: string; items: Extra[] }) 
   );
 }
 
-function ExtraOption({ extra, selected, quantity, onPress, onQuantityChange }: {
+function ExtraOption({ extra, selected, quantity, priceMultiplier, onPress, onPriceChange, onQuantityChange }: {
   extra: Extra;
   selected: boolean;
   quantity?: number;
+  priceMultiplier?: number;
   onPress: () => void;
+  onPriceChange?: (price: number) => void;
   onQuantityChange?: (quantity: number) => void;
 }) {
   return (
     <View style={styles.extraOption}>
-      <Pressable onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} style={styles.extraSelect}>
-        {selected ? <Check size={18} color={Colors.primary} /> : <Circle size={18} color={Colors.neutralBorder} />}
-        <Text style={styles.extraName}>{extra.nombre}</Text>
-      </Pressable>
-      {selected && quantity !== undefined && onQuantityChange ? (
+      <View style={styles.extraCheckbox}>
+        <Checkbox
+          label={extra.nombre}
+          description={quantity !== undefined ? 'Precio por unidad' : 'Precio unitario'}
+          checked={selected}
+          onChange={onPress}
+          priceValue={extra.precio}
+          priceMultiplier={priceMultiplier ?? quantity}
+          onPriceChange={onPriceChange}
+        />
+      </View>
+      {selected && quantity !== undefined && onQuantityChange && (
         <Stepper label="" value={quantity} min={1} onChange={onQuantityChange} />
-      ) : <Text style={styles.extraPrice}>{formatCurrency(extra.precio)}</Text>}
+      )}
+    </View>
+  );
+}
+
+function VariableExtraOption({ extra, quantity, onPriceChange, onQuantityChange }: {
+  extra: Extra;
+  quantity: number;
+  onPriceChange: (price: number) => void;
+  onQuantityChange: (quantity: number) => void;
+}) {
+  return (
+    <View style={styles.extraOption}>
+      <View style={styles.variableDescription}>
+        <Text style={styles.extraName}>{extra.nombre}</Text>
+        <Text style={styles.extraPrice}>Por unidad</Text>
+      </View>
+      <PriceEditor value={extra.precio} onChange={onPriceChange} />
+      <Stepper label="" value={quantity} min={0} max={500} onChange={onQuantityChange} />
     </View>
   );
 }
@@ -434,12 +563,12 @@ const styles = StyleSheet.create({
   selectedExtra: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
   emptyExtras: { paddingVertical: 8, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.disabledText },
   customCatering: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
-  extraOption: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
-  extraSelect: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  extraOption: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  extraCheckbox: { flex: 1 },
+  variableDescription: { flex: 1 },
   extraName: { flex: 1, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textDark },
   extraPrice: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.text },
   error: { marginTop: 8, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.danger },
   saveButton: { marginTop: 18 },
-  movementActions: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 12 },
-  movementButton: { flex: 1, paddingHorizontal: 8 },
+  movementActions: { marginTop: 10, marginBottom: 12 },
 });

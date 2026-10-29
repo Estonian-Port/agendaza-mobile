@@ -23,7 +23,7 @@ import {
 } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Checkbox } from '@/components/ui/Checkbox';
+import { Checkbox, PriceEditor } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectOption } from '@/components/ui/Select';
 import { Stepper } from '@/components/ui/Stepper';
@@ -57,7 +57,7 @@ const TIMES: SelectOption[] = Array.from({ length: 48 }, (_, index) => {
   const hour = String(Math.floor(index / 2)).padStart(2, '0');
   const minute = index % 2 === 0 ? '00' : '30';
   return { label: `${hour}:${minute}`, value: `${hour}:${minute}` };
-});
+}).reverse();
 
 type ReservationValues = {
   duration: Duracion | '';
@@ -68,13 +68,15 @@ type ReservationValues = {
   fecha: string;
   horaInicio: string;
   horaFin: string;
+  precioTipoEvento: number | null;
+  preciosExtras: Record<number, number>;
   extrasFijos: number[];
   extrasVariables: Record<number, number>;
   extraOtro: string;
   extraOtroDescripcion: string;
   cateringActivo: boolean;
   tiposCatering: number[];
-  extrasCatering: number[];
+  extrasCatering: Record<number, number>;
   cateringOtro: string;
   cateringOtroDescripcion: string;
   cliente: Cliente;
@@ -91,13 +93,15 @@ const initialValues: ReservationValues = {
   fecha: '',
   horaInicio: '',
   horaFin: '',
+  precioTipoEvento: null,
+  preciosExtras: {},
   extrasFijos: [],
   extrasVariables: {},
   extraOtro: '0',
   extraOtroDescripcion: '',
   cateringActivo: false,
   tiposCatering: [],
-  extrasCatering: [],
+  extrasCatering: {},
   cateringOtro: '',
   cateringOtroDescripcion: '',
   cliente: { nombre: '', apellido: '', celular: '', email: '' },
@@ -160,7 +164,7 @@ function getStepErrors(values: ReservationValues, step: number): FormikErrors<Re
 }
 
 export default function NuevaReservaScreen() {
-  const { usuario } = useAuth();
+  const { usuario, notifyAgendaChanged } = useAuth();
   const [step, setStep] = useState(0);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -203,16 +207,32 @@ export default function NuevaReservaScreen() {
       if (end <= start) end.setDate(end.getDate() + 1);
 
       const selectedExtras = [
-        ...extrasFijos.filter((extra) => values.extrasFijos.includes(extra.id)),
+        ...extrasFijos
+          .filter((extra) => values.extrasFijos.includes(extra.id))
+          .map((extra) => ({ ...extra, precio: values.preciosExtras[extra.id] ?? extra.precio })),
         ...extrasVariables
           .filter((extra) => (values.extrasVariables[extra.id] ?? 0) > 0)
-          .map((extra) => ({ ...extra, cantidad: values.extrasVariables[extra.id] })),
+          .map((extra) => ({
+            ...extra,
+            precio: values.preciosExtras[extra.id] ?? extra.precio,
+            cantidad: values.extrasVariables[extra.id],
+          })),
         ...(values.cateringActivo
           ? [
               ...tiposCatering
                 .filter((extra) => values.tiposCatering.includes(extra.id))
-                .map((extra) => ({ ...extra, cantidad: extra.cantidad })),
-              ...extrasCatering.filter((extra) => values.extrasCatering.includes(extra.id)),
+                .map((extra) => ({
+                  ...extra,
+                  precio: values.preciosExtras[extra.id] ?? extra.precio,
+                  cantidad: extra.cantidad,
+                })),
+              ...extrasCatering
+                .filter((extra) => (values.extrasCatering[extra.id] ?? 0) > 0)
+                .map((extra) => ({
+                  ...extra,
+                  precio: values.preciosExtras[extra.id] ?? extra.precio,
+                  cantidad: values.extrasCatering[extra.id],
+                })),
             ]
           : []),
       ];
@@ -230,7 +250,7 @@ export default function NuevaReservaScreen() {
         empresaId: usuario.empresaId,
         extraOtro: Number(values.extraOtro || 0),
         extraOtroDescripcion: values.extraOtroDescripcion.trim(),
-        precioTipoEvento: eventTypePrice ?? selectedTipo.precioBase,
+        precioTipoEvento: values.precioTipoEvento ?? eventTypePrice ?? selectedTipo.precioBase,
         listaExtra: selectedExtras,
         cateringOtro: values.cateringActivo ? Number(values.cateringOtro || 0) : 0,
         cateringOtroDescripcion: values.cateringActivo ? values.cateringOtroDescripcion.trim() : '',
@@ -250,6 +270,7 @@ export default function NuevaReservaScreen() {
       try {
         const response = await eventoService.save(payload);
         setSavedEvent(response.data);
+        notifyAgendaChanged();
       } catch (error) {
         setSubmitError(error instanceof Error ? error.message : 'No se pudo guardar la reserva.');
       }
@@ -325,6 +346,7 @@ export default function NuevaReservaScreen() {
     const tipo = tiposEvento.find((item) => item.id === tipoEventoId);
     if (!fecha || tipoEventoId === '' || !tipo) {
       setEventTypePrice(tipo?.precioBase ?? null);
+      void formik.setFieldValue('precioTipoEvento', tipo?.precioBase ?? null, false);
       setPriceLoading(false);
       setPriceError('');
       return () => {
@@ -336,7 +358,10 @@ export default function NuevaReservaScreen() {
     setPriceError('');
     tipoEventoService.getPrecioPorFecha(tipoEventoId, fecha)
       .then((price) => {
-        if (active) setEventTypePrice(price);
+        if (active) {
+          setEventTypePrice(price);
+          void formik.setFieldValue('precioTipoEvento', price, false);
+        }
       })
       .catch(() => {
         if (active) setPriceError('No se pudo consultar el precio del tipo de evento para esta fecha.');
@@ -360,6 +385,7 @@ export default function NuevaReservaScreen() {
       setExtrasCatering([]);
       setExtrasLoading(false);
       setExtrasError('');
+      void formik.setFieldValue('preciosExtras', {}, false);
       return () => {
         active = false;
       };
@@ -371,10 +397,11 @@ export default function NuevaReservaScreen() {
     setExtrasVariables([]);
     setTiposCatering([]);
     setExtrasCatering([]);
+    void formik.setFieldValue('preciosExtras', {}, false);
     void formik.setFieldValue('extrasFijos', [], false);
     void formik.setFieldValue('extrasVariables', {}, false);
     void formik.setFieldValue('tiposCatering', [], false);
-    void formik.setFieldValue('extrasCatering', [], false);
+    void formik.setFieldValue('extrasCatering', {}, false);
 
     Promise.all([
       extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'EVENTO'),
@@ -451,24 +478,28 @@ export default function NuevaReservaScreen() {
 
   const selectedTipo = tiposEvento.find((tipo) => tipo.id === formik.values.tipoEventoId);
   const guestCount = formik.values.capacidadAdultos + formik.values.capacidadNinos;
-  const budget = useMemo(() => {
+  const { quoteTotal, cateringTotal, budget } = useMemo(() => {
     const fixedTotal = extrasFijos
       .filter((extra) => formik.values.extrasFijos.includes(extra.id))
-      .reduce((sum, extra) => sum + extra.precio * extra.cantidad, 0);
+      .reduce((sum, extra) => sum + (formik.values.preciosExtras[extra.id] ?? extra.precio) * extra.cantidad, 0);
     const variableTotal = extrasVariables.reduce(
-      (sum, extra) => sum + extra.precio * (formik.values.extrasVariables[extra.id] ?? 0),
+      (sum, extra) => sum + (formik.values.preciosExtras[extra.id] ?? extra.precio) * (formik.values.extrasVariables[extra.id] ?? 0),
       0,
     );
+    const quoteTotal =
+      (formik.values.precioTipoEvento ?? eventTypePrice ?? selectedTipo?.precioBase ?? 0) +
+      fixedTotal +
+      variableTotal +
+      Number(formik.values.extraOtro || 0);
     const cateringTotal = formik.values.cateringActivo
       ? tiposCatering
           .filter((extra) => formik.values.tiposCatering.includes(extra.id))
-          .reduce((sum, extra) => sum + extra.precio * guestCount, 0) +
+          .reduce((sum, extra) => sum + (formik.values.preciosExtras[extra.id] ?? extra.precio) * guestCount, 0) +
         extrasCatering
-          .filter((extra) => formik.values.extrasCatering.includes(extra.id))
-          .reduce((sum, extra) => sum + extra.precio * extra.cantidad, 0) +
+          .reduce((sum, extra) => sum + (formik.values.preciosExtras[extra.id] ?? extra.precio) * (formik.values.extrasCatering[extra.id] ?? 0), 0) +
         Number(formik.values.cateringOtro || 0) * guestCount
       : 0;
-    return (eventTypePrice ?? selectedTipo?.precioBase ?? 0) + fixedTotal + variableTotal + Number(formik.values.extraOtro || 0) + cateringTotal;
+    return { quoteTotal, cateringTotal, budget: quoteTotal + cateringTotal };
   }, [
     extrasCatering,
     extrasFijos,
@@ -479,6 +510,8 @@ export default function NuevaReservaScreen() {
     formik.values.extrasFijos,
     formik.values.extrasVariables,
     formik.values.extraOtro,
+    formik.values.precioTipoEvento,
+    formik.values.preciosExtras,
     formik.values.tiposCatering,
     guestCount,
     eventTypePrice,
@@ -515,7 +548,7 @@ export default function NuevaReservaScreen() {
     }
   };
 
-  const toggleId = (field: 'extrasFijos' | 'tiposCatering' | 'extrasCatering', id: number) => {
+  const toggleId = (field: 'extrasFijos' | 'tiposCatering', id: number) => {
     const current = formik.values[field];
     void formik.setFieldValue(field, current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   };
@@ -664,8 +697,8 @@ export default function NuevaReservaScreen() {
                     placeholder="Seleccionar tipo"
                   />
                   <View style={styles.capacityRow}>
-                    <Stepper label="Adultos" value={formik.values.capacidadAdultos} onChange={(value) => void formik.setFieldValue('capacidadAdultos', value)} min={1} max={1000} step={5} />
-                    <Stepper label="Niños" value={formik.values.capacidadNinos} onChange={(value) => void formik.setFieldValue('capacidadNinos', value)} min={0} max={1000} step={5} />
+                    <Stepper label="Adultos" value={formik.values.capacidadAdultos} onChange={(value) => void formik.setFieldValue('capacidadAdultos', value)} min={1} max={1000} editable />
+                    <Stepper label="Niños" value={formik.values.capacidadNinos} onChange={(value) => void formik.setFieldValue('capacidadNinos', value)} min={0} max={1000} editable />
                   </View>
                   <View style={styles.capacitySummary}>
                     <Text style={styles.capacitySummaryLabel}>Capacidad total</Text>
@@ -768,15 +801,25 @@ export default function NuevaReservaScreen() {
                   <Text style={styles.helperText}>Sumá servicios y extras para personalizar la propuesta.</Text>
                   {extrasLoading && <ActivityIndicator color={Colors.primary} style={styles.loader} />}
                   {!!extrasError && <Text style={styles.inlineError}>{extrasError}</Text>}
-                  {selectedTipo && <PriceRow label={`Base · ${selectedTipo.nombre}`} price={eventTypePrice ?? selectedTipo.precioBase} prominent />}
+                  {selectedTipo && (
+                    <PriceRow
+                      label={`Base · ${selectedTipo.nombre}`}
+                      price={formik.values.precioTipoEvento ?? eventTypePrice ?? selectedTipo.precioBase}
+                      onPriceChange={(price) => void formik.setFieldValue('precioTipoEvento', price, false)}
+                      prominent
+                    />
+                  )}
                   <Text style={styles.groupLabel}>EXTRAS FIJOS</Text>
                   {extrasFijos.filter((extra) => !selectedTipo || extra.listaTipoEventoId.length === 0 || extra.listaTipoEventoId.includes(selectedTipo.id)).map((extra) => (
                     <Checkbox
                       key={extra.id}
                       label={extra.nombre}
+                      description="Precio unitario"
                       checked={formik.values.extrasFijos.includes(extra.id)}
                       onChange={() => toggleId('extrasFijos', extra.id)}
-                      rightText={formatCurrency(extra.precio * extra.cantidad)}
+                      priceValue={formik.values.preciosExtras[extra.id] ?? extra.precio}
+                      priceMultiplier={extra.cantidad}
+                      onPriceChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
                     />
                   ))}
                   <Text style={styles.groupLabel}>EXTRAS VARIABLES</Text>
@@ -786,8 +829,12 @@ export default function NuevaReservaScreen() {
                       <View key={extra.id} style={styles.variableRow}>
                         <View style={styles.variableDescription}>
                           <Text style={styles.extraName}>{extra.nombre}</Text>
-                          <Text style={styles.extraPrice}>{formatCurrency(extra.precio)} por unidad</Text>
+                          <Text style={styles.extraPrice}>Por unidad</Text>
                         </View>
+                        <PriceEditor
+                          value={formik.values.preciosExtras[extra.id] ?? extra.precio}
+                          onChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
+                        />
                         <Stepper label="" value={quantity} onChange={(value) => void formik.setFieldValue(`extrasVariables.${extra.id}`, value)} min={0} max={500} />
                       </View>
                     );
@@ -807,7 +854,7 @@ export default function NuevaReservaScreen() {
                     onChangeText={(value) => void formik.setFieldValue('extraOtroDescripcion', value)}
                     placeholder="Ej. Decoración especial"
                   />
-                  <PriceRow label="Presupuesto actualizado" price={budget} prominent />
+                  <PriceRow label="Total de cotización" price={quoteTotal} prominent />
                 </>
               )}
 
@@ -828,21 +875,31 @@ export default function NuevaReservaScreen() {
                         <Checkbox
                           key={extra.id}
                           label={extra.nombre}
-                          description={`${formatCurrency(extra.precio)} por persona`}
                           checked={formik.values.tiposCatering.includes(extra.id)}
                           onChange={() => toggleId('tiposCatering', extra.id)}
-                          rightText={formatCurrency(extra.precio * guestCount)}
+                          priceValue={formik.values.preciosExtras[extra.id] ?? extra.precio}
+                          onPriceChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
                         />
                       ))}
                       <Text style={styles.groupLabel}>EXTRAS GASTRONÓMICOS</Text>
                       {extrasCatering.map((extra) => (
-                        <Checkbox
-                          key={extra.id}
-                          label={extra.nombre}
-                          checked={formik.values.extrasCatering.includes(extra.id)}
-                          onChange={() => toggleId('extrasCatering', extra.id)}
-                          rightText={formatCurrency(extra.precio * extra.cantidad)}
-                        />
+                        <View key={extra.id} style={styles.variableRow}>
+                          <View style={styles.variableDescription}>
+                            <Text style={styles.extraName}>{extra.nombre}</Text>
+                            <Text style={styles.extraPrice}>Por unidad</Text>
+                          </View>
+                          <PriceEditor
+                            value={formik.values.preciosExtras[extra.id] ?? extra.precio}
+                            onChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
+                          />
+                          <Stepper
+                            label=""
+                            value={formik.values.extrasCatering[extra.id] ?? 0}
+                            onChange={(value) => void formik.setFieldValue(`extrasCatering.${extra.id}`, value)}
+                            min={0}
+                            max={500}
+                          />
+                        </View>
                       ))}
                       <Text style={styles.groupLabel}>OTRO CATERING</Text>
                       <Input
@@ -864,7 +921,7 @@ export default function NuevaReservaScreen() {
                       <Text style={styles.guestCalculation}>{guestCount} personas × {formatCurrency(Number(formik.values.cateringOtro || 0))} por plato</Text>
                     </>
                   )}
-                  <PriceRow label="Presupuesto actualizado" price={budget} prominent />
+                  <PriceRow label="Total de catering" price={cateringTotal} prominent />
                 </>
               )}
 
@@ -933,6 +990,8 @@ export default function NuevaReservaScreen() {
                   />
                   <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Evento</Text><Text style={styles.reviewValue}>{formik.values.nombre || 'Sin nombre'}</Text></View>
                   <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Invitados</Text><Text style={styles.reviewValue}>{guestCount}</Text></View>
+                  <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Total de cotización</Text><Text style={styles.reviewValue}>{formatCurrency(quoteTotal)}</Text></View>
+                  <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Total de catering</Text><Text style={styles.reviewValue}>{formatCurrency(cateringTotal)}</Text></View>
                   <View style={styles.reviewLine}><Text style={styles.reviewLabel}>Presupuesto estimado</Text><Text style={styles.reviewBudget}>{formatCurrency(budget)}</Text></View>
                   {!!submitError && <Text style={styles.inlineError}>{submitError}</Text>}
                 </>
@@ -1003,11 +1062,25 @@ export default function NuevaReservaScreen() {
   );
 }
 
-function PriceRow({ label, price, prominent = false }: { label: string; price: number; prominent?: boolean }) {
+function PriceRow({
+  label,
+  price,
+  onPriceChange,
+  prominent = false,
+}: {
+  label: string;
+  price: number;
+  onPriceChange?: (price: number) => void;
+  prominent?: boolean;
+}) {
   return (
     <View style={[styles.priceRow, prominent && styles.priceRowProminent]}>
       <Text style={[styles.priceLabel, prominent && styles.priceLabelProminent]}>{label}</Text>
-      <Text style={[styles.priceValue, prominent && styles.priceValueProminent]}>{formatCurrency(price)}</Text>
+      {onPriceChange ? (
+        <PriceEditor value={price} onChange={onPriceChange} />
+      ) : (
+        <Text style={[styles.priceValue, prominent && styles.priceValueProminent]}>{formatCurrency(price)}</Text>
+      )}
     </View>
   );
 }

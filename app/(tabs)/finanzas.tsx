@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, Download, Plus, Wallet } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, ChevronUp, Download, Plus, Wallet } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { MovementSheet } from '@/components/finance/MovementSheet';
@@ -10,6 +10,7 @@ import { globalStyles } from '@/constants/styles';
 import { Colors, Radius } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { gastoService } from '@/services/gasto.service';
+import { eventoService } from '@/services/evento.service';
 import { pagoService } from '@/services/pago.service';
 import { Gasto, Pago, ResumenPagosMes } from '@/types/domain';
 
@@ -30,7 +31,19 @@ type MovimientoFinanciero = {
   titulo: string;
   etiqueta: string;
   pagoId?: number;
+  gastos?: Gasto[];
+  eventoId?: number;
+  fechaEvento?: string;
 };
+
+type DatosFinancieros = {
+  pagos: Pago[];
+  gastos: Gasto[];
+  resumen: ResumenPagosMes;
+};
+
+const financialCache = new Map<string, DatosFinancieros>();
+const financialRequests = new Map<string, Promise<DatosFinancieros>>();
 
 const moneda = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -85,8 +98,40 @@ function toMovimientoGasto(gasto: Gasto): MovimientoFinanciero {
   };
 }
 
+function toMovimientosGastos(gastos: Gasto[], fechasEvento: Record<number, string>): MovimientoFinanciero[] {
+  const movimientos: MovimientoFinanciero[] = [];
+  const grupos = new Map<string, Gasto[]>();
+
+  gastos.forEach((gasto) => {
+    if (gasto.tipoGasto !== 'EVENTO' || gasto.eventoId == null) {
+      movimientos.push(toMovimientoGasto(gasto));
+      return;
+    }
+    const key = `evento-${gasto.eventoId}`;
+    grupos.set(key, [...(grupos.get(key) ?? []), gasto]);
+  });
+
+  grupos.forEach((gastosDelEvento, key) => {
+    const primerGasto = gastosDelEvento[0];
+    const eventoId = primerGasto.eventoId;
+    movimientos.push({
+      id: `gastos-${key}`,
+      fecha: gastosDelEvento.reduce((fecha, gasto) => gasto.fecha > fecha ? gasto.fecha : fecha, primerGasto.fecha),
+      fechaEvento: eventoId !== undefined ? fechasEvento[eventoId] : undefined,
+      monto: gastosDelEvento.reduce((total, gasto) => total + gasto.monto, 0),
+      esIngreso: false,
+      titulo: primerGasto.nombreEvento || primerGasto.codigoEvento || 'Evento',
+      etiqueta: 'Evento',
+      eventoId,
+      gastos: gastosDelEvento,
+    });
+  });
+
+  return movimientos;
+}
+
 export default function FinanzasScreen() {
-  const { usuario } = useAuth();
+  const { usuario, financeRevision, notifyFinanceChanged } = useAuth();
   const [mes, setMes] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -100,28 +145,58 @@ export default function FinanzasScreen() {
   const [error, setError] = useState<string | null>(null);
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [expandedExpenseGroups, setExpandedExpenseGroups] = useState<Set<string>>(() => new Set());
+  const [fechasEvento, setFechasEvento] = useState<Record<number, string>>({});
   const requestId = useRef(0);
 
   useEffect(() => {
     const currentRequestId = ++requestId.current;
     let active = true;
-    setLoading(true);
     setVisibleCount(PAGE_SIZE);
-    setPagos([]);
-    setGastos([]);
     setError(null);
 
-    Promise.all([
-      pagoService.getAllByMes(mes.getMonth() + 1, mes.getFullYear()),
-      pagoService.getResumenMes(mes.getMonth() + 1, mes.getFullYear()),
-      gastoService.getAllByMes(mes.getMonth() + 1, mes.getFullYear()),
-    ])
-      .then(([movimientos, resultado, gastosDelMes]) => {
+    const mesNumero = mes.getMonth() + 1;
+    const anio = mes.getFullYear();
+    const cacheKey = `${usuario?.empresaId ?? 'sin-agenda'}:${anio}-${mesNumero}:${financeRevision}`;
+    const cachedData = financialCache.get(cacheKey);
+
+    if (cachedData) {
+      setPagos(cachedData.pagos);
+      setGastos(cachedData.gastos);
+      setResumen(cachedData.resumen);
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setLoading(true);
+    let request = financialRequests.get(cacheKey);
+    if (!request) {
+      request = Promise.all([
+        pagoService.getAllByMes(mesNumero, anio),
+        pagoService.getResumenMes(mesNumero, anio),
+        gastoService.getAllByMes(mesNumero, anio),
+      ]).then(([movimientos, resultado, gastosDelMes]) => {
+        const data = {
+          pagos: movimientos.sort((a, b) => b.fecha.localeCompare(a.fecha)),
+          gastos: gastosDelMes,
+          resumen: resultado,
+        };
+        financialCache.set(cacheKey, data);
+        return data;
+      }).finally(() => {
+        financialRequests.delete(cacheKey);
+      });
+      financialRequests.set(cacheKey, request);
+    }
+
+    request
+      .then((data) => {
         if (!active || currentRequestId !== requestId.current) return;
-        setPagos(movimientos.sort((a, b) => b.fecha.localeCompare(a.fecha)));
-        setGastos(gastosDelMes);
-        setResumen(resultado);
+        setPagos(data.pagos);
+        setGastos(data.gastos);
+        setResumen(data.resumen);
       })
       .catch(() => {
         if (active && currentRequestId === requestId.current) {
@@ -135,14 +210,40 @@ export default function FinanzasScreen() {
     return () => {
       active = false;
     };
-  }, [mes, refreshKey]);
+  }, [mes, usuario?.empresaId, financeRevision]);
+
+  useEffect(() => {
+    let active = true;
+    const eventoIds = [...new Set(gastos.flatMap((gasto) => gasto.eventoId === undefined ? [] : [gasto.eventoId]))];
+    if (eventoIds.length === 0) {
+      setFechasEvento({});
+      return () => {
+        active = false;
+      };
+    }
+
+    Promise.all(eventoIds.map(async (eventoId) => {
+      try {
+        const evento = await eventoService.getEventoVer(eventoId);
+        return [eventoId, evento.inicio] as const;
+      } catch {
+        return [eventoId, ''] as const;
+      }
+    })).then((resultados) => {
+      if (active) setFechasEvento(Object.fromEntries(resultados));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [gastos]);
 
   const cargarMas = () => setVisibleCount((actual) => actual + PAGE_SIZE);
 
   const movimientos = useMemo(() => [
     ...pagos.map(toMovimiento),
-    ...gastos.map(toMovimientoGasto),
-  ].sort((a, b) => b.fecha.localeCompare(a.fecha)), [pagos, gastos]);
+    ...toMovimientosGastos(gastos, fechasEvento),
+  ].sort((a, b) => b.fecha.localeCompare(a.fecha)), [pagos, gastos, fechasEvento]);
   const movimientosFiltrados = useMemo(() => movimientos.filter((movimiento) => {
     if (filtro === 'INGRESOS') return movimiento.esIngreso;
     if (filtro === 'EGRESOS') return !movimiento.esIngreso;
@@ -287,6 +388,51 @@ export default function FinanzasScreen() {
                   const esIngreso = movimiento.esIngreso;
                   const tint = esIngreso ? Colors.success : Colors.danger;
                   const Icon = esIngreso ? ArrowUpRight : ArrowDownLeft;
+                  const grupoExpandido = expandedExpenseGroups.has(movimiento.id);
+                  if (movimiento.gastos) {
+                    return (
+                      <View key={movimiento.id} style={index < movimientosFiltrados.length - 1 && styles.movementCardDivider}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ expanded: grupoExpandido }}
+                          onPress={() => setExpandedExpenseGroups((actual) => {
+                            const siguiente = new Set(actual);
+                            if (siguiente.has(movimiento.id)) siguiente.delete(movimiento.id);
+                            else siguiente.add(movimiento.id);
+                            return siguiente;
+                          })}
+                          style={styles.movementCard}
+                        >
+                          <View style={[styles.movementIcon, styles.expenseGroupIcon]}>
+                            <ArrowDownLeft size={19} color={Colors.danger} />
+                          </View>
+                          <View style={styles.movementDetails}>
+                            <Text style={styles.movementTitle} numberOfLines={1}>{movimiento.titulo}</Text>
+                            <View style={styles.movementMeta}>
+                              <Text style={styles.movementDate}>
+                                {dateLabel(movimiento.fechaEvento || movimiento.fecha)}
+                              </Text>
+                              <Text style={styles.conceptTag}>Evento</Text>
+                            </View>
+                          </View>
+                          <View style={styles.amountAndDownload}>
+                            <Text style={[styles.amount, { color: Colors.danger }]}>-{moneda.format(movimiento.monto)}</Text>
+                            {grupoExpandido ? <ChevronUp size={17} color={Colors.text} /> : <ChevronDown size={17} color={Colors.text} />}
+                          </View>
+                        </Pressable>
+                        {grupoExpandido && (
+                          <View style={styles.expenseDetails}>
+                            {movimiento.gastos.map((gasto) => (
+                              <View key={gasto.id} style={styles.expenseDetailRow}>
+                                <Text style={styles.expenseDescription}>{gasto.descripcion || gasto.tipoGasto}</Text>
+                                <Text style={styles.expenseAmount}>-{moneda.format(gasto.monto)}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  }
                   return (
                     <View
                       key={movimiento.id}
@@ -348,7 +494,7 @@ export default function FinanzasScreen() {
           initialType="PAGO"
           usuario={usuario}
           onClose={() => setMovementSheetOpen(false)}
-          onSaved={() => setRefreshKey((current) => current + 1)}
+          onSaved={notifyFinanceChanged}
         />
       )}
     </ScrollView>
@@ -469,6 +615,20 @@ const styles = StyleSheet.create({
   filterText: { fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.text },
   filterTextSelected: { color: Colors.textDark },
   movementList: {},
+  expenseGroupIcon: { backgroundColor: '#fcebed' },
+  expenseDetails: { paddingLeft: 49, paddingBottom: 10 },
+  expenseDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 34,
+    paddingVertical: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.neutralBorder,
+  },
+  expenseDescription: { flex: 1, color: Colors.text, fontFamily: 'Inter-Regular', fontSize: 12 },
+  expenseAmount: { color: Colors.danger, fontFamily: 'Inter-Medium', fontSize: 12 },
   loadMoreButton: {
     minHeight: 44,
     flexDirection: 'row',

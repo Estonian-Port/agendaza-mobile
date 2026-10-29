@@ -7,12 +7,13 @@ import { EventCard } from '@/components/calendar/EventCard';
 import { EventSearchFields } from '@/components/calendar/EventSearchFields';
 import { MovementSheet } from '@/components/finance/MovementSheet';
 import { EventDetailSheet } from '@/components/calendar/EventDetailSheet';
+import { EventAccountSheet } from '@/components/calendar/EventAccountSheet';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { globalStyles } from '@/constants/styles';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { eventoService } from '@/services/evento.service';
-import { Evento, EventoAgenda } from '@/types/domain';
+import { Evento, EventoAgenda, EventoVer, Gasto, Pago } from '@/types/domain';
 
 type SearchType = 'CODIGO' | 'FECHA';
 type MovementType = 'PAGO' | 'GASTO';
@@ -37,7 +38,7 @@ function formatEventDate(dateTime: string) {
 }
 
 export default function CalendarioScreen() {
-  const { usuario } = useAuth();
+  const { usuario, agendaRevision, notifyFinanceChanged } = useAuth();
   const [agenda, setAgenda] = useState<EventoAgenda[]>([]);
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [loading, setLoading] = useState(true);
@@ -50,14 +51,22 @@ export default function CalendarioScreen() {
   const [searchError, setSearchError] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [eventDetailId, setEventDetailId] = useState<number | null>(null);
+  const [accountEvent, setAccountEvent] = useState<EventoVer | null>(null);
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [movementEvent, setMovementEvent] = useState<Evento | null>(null);
+  const [editingPayment, setEditingPayment] = useState<Pago | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Gasto | null>(null);
+  const [returnToAccount, setReturnToAccount] = useState(false);
   const [movementType, setMovementType] = useState<MovementType>('PAGO');
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [accountRefreshKey, setAccountRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
 
+    setLoading(true);
+    setError(null);
     eventoService.getAgenda()
       .then((events) => {
         if (active) setAgenda(events);
@@ -72,7 +81,7 @@ export default function CalendarioScreen() {
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, [agendaRevision, refreshKey, usuario?.empresaId]);
 
   const markedDates = useMemo(() => {
     const marks: Record<string, { marked?: boolean; dotColor?: string; selected?: boolean; selectedColor?: string }> = {};
@@ -127,12 +136,30 @@ export default function CalendarioScreen() {
     }
   };
 
-  const abrirMovimiento = (type: MovementType, event: Evento) => {
+  const abrirEstadoCuenta = (event: EventoVer) => {
+    setAccountEvent(event);
+    setAccountSheetOpen(true);
+  };
+
+  const abrirMovimientoDesdeCuenta = (type: MovementType, payment: Pago | null = null, expense: Gasto | null = null) => {
+    if (!accountEvent) return;
     setMovementType(type);
-    setMovementEvent(event);
-    setEventDetailId(null);
+    setMovementEvent(accountEvent);
+    setEditingPayment(payment);
+    setEditingExpense(expense);
+    setReturnToAccount(true);
     setMovementSheetOpen(true);
   };
+
+  const cerrarMovimiento = () => {
+    setMovementSheetOpen(false);
+    setEditingPayment(null);
+    setEditingExpense(null);
+    if (returnToAccount) setAccountSheetOpen(true);
+    setReturnToAccount(false);
+  };
+
+  const movementTitle = editingPayment ? 'Editar pago' : editingExpense ? 'Editar gasto' : movementType === 'PAGO' ? 'Registrar pago' : 'Registrar gasto';
 
   return (
     <ScrollView contentContainerStyle={[globalStyles.screenContent, styles.content]}>
@@ -146,20 +173,6 @@ export default function CalendarioScreen() {
               : 'No hay próximos eventos'}
         </Text>
       </Card>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Buscar evento por fecha o código"
-        onPress={() => setSearchOpen(true)}
-        style={({ pressed }) => [styles.searchTrigger, pressed && styles.searchPressed]}
-      >
-        <Search size={20} color={Colors.white} />
-        <View style={styles.searchCopy}>
-          <Text style={styles.searchTitle}>Buscar evento</Text>
-          <Text style={styles.searchSubtitle}>Por fecha o código</Text>
-        </View>
-        <CalendarDays size={19} color={Colors.white} />
-      </Pressable>
 
       <BottomSheet open={searchOpen} onClose={() => setSearchOpen(false)} title="Buscar evento" height="75%">
         <View style={styles.searchSwitch}>
@@ -270,17 +283,78 @@ export default function CalendarioScreen() {
           <EventDetailSheet
             open={eventDetailId !== null}
             eventId={eventDetailId}
-            onClose={() => setEventDetailId(null)}
+            accountOpen={accountSheetOpen}
+            showAccountBackButton={!(returnToAccount && movementSheetOpen)}
+            accountTitle={returnToAccount && movementSheetOpen ? movementTitle : 'Estado de cuenta'}
+            accountContent={(
+              <EventAccountSheet
+                open={accountSheetOpen}
+                embedded
+                event={accountEvent}
+                refreshKey={accountRefreshKey}
+                showMovement={returnToAccount && movementSheetOpen}
+                movementTitle={movementTitle}
+                movementContent={returnToAccount ? (
+                  <MovementSheet
+                    open={movementSheetOpen}
+                    embedded
+                    initialType={movementType}
+                    initialEvent={movementEvent}
+                    initialPago={editingPayment}
+                    initialGasto={editingExpense}
+                    usuario={usuario}
+                    onClose={cerrarMovimiento}
+                    onSaved={() => {
+                      notifyFinanceChanged();
+                      setAccountRefreshKey((current) => current + 1);
+                    }}
+                  />
+                ) : null}
+                onClose={() => {
+                  setAccountSheetOpen(false);
+                  setAccountEvent(null);
+                  setMovementSheetOpen(false);
+                  setEditingPayment(null);
+                  setEditingExpense(null);
+                  setReturnToAccount(false);
+                }}
+                onAddMovement={(type) => abrirMovimientoDesdeCuenta(type)}
+                onEditPayment={(payment) => abrirMovimientoDesdeCuenta('PAGO', payment)}
+                onEditExpense={(expense) => abrirMovimientoDesdeCuenta('GASTO', null, expense)}
+              />
+            )}
+            onClose={() => {
+              setEventDetailId(null);
+              setAccountSheetOpen(false);
+              setAccountEvent(null);
+              setMovementSheetOpen(false);
+              setEditingPayment(null);
+              setEditingExpense(null);
+              setReturnToAccount(false);
+            }}
+            onCloseAccount={() => {
+              setAccountSheetOpen(false);
+              setAccountEvent(null);
+              setMovementSheetOpen(false);
+              setEditingPayment(null);
+              setEditingExpense(null);
+              setReturnToAccount(false);
+            }}
             onUpdated={() => setRefreshKey((current) => current + 1)}
-            onAddMovement={abrirMovimiento}
+            onOpenAccount={abrirEstadoCuenta}
           />
           <MovementSheet
-            open={movementSheetOpen}
+            open={movementSheetOpen && !returnToAccount}
             initialType={movementType}
             initialEvent={movementEvent}
+            initialPago={editingPayment}
+            initialGasto={editingExpense}
             usuario={usuario}
-            onClose={() => setMovementSheetOpen(false)}
-            onSaved={() => setRefreshKey((current) => current + 1)}
+            onClose={cerrarMovimiento}
+            onSaved={() => {
+              notifyFinanceChanged();
+              setAccountRefreshKey((current) => current + 1);
+            }}
           />
         </>
       )}

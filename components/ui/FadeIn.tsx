@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, Easing } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, WithTimingConfig } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withDelay, withTiming, WithTimingConfig } from 'react-native-reanimated';
 
 interface FadeInProps {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ export function FadeIn({ children, visible, duration = 280, delay = 0, style }: 
 
   useEffect(() => {
     if (visible) mounted.current = true;
-    opacity.value = withTiming(visible ? 1 : 0, { ...timingConfig, duration, delay });
+    opacity.value = withDelay(delay, withTiming(visible ? 1 : 0, { ...timingConfig, duration }));
   }, [visible, opacity, duration, delay]);
 
   const animatedStyle = useAnimatedStyle(() => ({

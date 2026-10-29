@@ -117,7 +117,6 @@ export interface EventoReservaDTO {
   tipoEventoId: number;
   empresaId: number;
   extraOtro: number;
-  extraOtroDescripcion?: string;
   precioTipoEvento: number;
   extraOtroDescripcion?: string;
   listaExtra: Array<{
@@ -154,16 +153,30 @@ export interface EventoAgenda {
 
 export interface EventoExtra {
   id: number;
-  listaExtra: Extra[];
-  listaExtraVariable: Extra[];
+  nombre: string;
+  codigo: string;
+  extraOtro: number;
+  extraOtroDescripcion?: string;
+  listaEventoExtra: Extra[];
+  tipoEventoExtra: {
+    id: number;
+    nombre: string;
+    precio: number;
+  };
+  fechaEvento: string;
 }
 
 export interface EventoCatering {
   id: number;
-  listaExtraTipoCatering: Extra[];
-  listaExtraCateringVariable: Extra[];
+  nombre: string;
+  codigo: string;
   cateringOtro: number;
   cateringOtroDescripcion?: string;
+  listaExtra: Extra[];
+  tipoEventoId: number;
+  fechaEvento: string;
+  capacidadAdultos: number;
+  capacidadNinos: number;
 }
 
 export interface EventoHora {
@@ -197,9 +210,17 @@ export interface Pago {
   nombreEvento?: string;
   codigo?: string;
   fechaEvento?: string;
-  numeroCuota?: string;
+  numeroCuota?: string | null;
   empresaId: number;
   usuarioId: number;
+}
+
+export interface EstadoCuentaEvento {
+  id: number;
+  nombre: string;
+  codigo: string;
+  fechaEvento: string;
+  precioTotal: number;
 }
 
 export interface Gasto {

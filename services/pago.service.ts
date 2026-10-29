@@ -1,5 +1,5 @@
 import { apiGet, apiPost, apiDelete, apiGetBlob } from './api-client';
-import { MedioPago, Pago, ResumenPagosMes } from '@/types/domain';
+import { EstadoCuentaEvento, MedioPago, Pago, ResumenPagosMes } from '@/types/domain';
 import { getEmpresaActivaId } from './empresa.service';
 import { eventoService } from './evento.service';
 
@@ -19,6 +19,14 @@ export const pagoService = {
 
   async getAllByEmpresa(pageNumber: number = 0): Promise<Pago[]> {
     return apiGet<Pago[]>(`${BASE}/empresa/${getEmpresaActivaId()}`, { page: pageNumber });
+  },
+
+  async getAllByEvento(eventoId: number): Promise<Pago[]> {
+    return apiGet<Pago[]>(`${BASE}/evento/${eventoId}`);
+  },
+
+  async getEstadoCuentaEvento(eventoId: number): Promise<EstadoCuentaEvento> {
+    return apiGet<EstadoCuentaEvento>(`${BASE}/evento/${eventoId}/estado-cuenta`);
   },
 
   async getResumenMes(mes: number, anio: number): Promise<ResumenPagosMes> {
