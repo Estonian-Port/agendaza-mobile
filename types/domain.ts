@@ -85,6 +85,7 @@ export interface Evento {
   fin: string;
   capacidadAdultos: number;
   capacidadNinos: number;
+  duracion?: Duracion;
   tipoEventoId?: number;
   tipoEventoNombre?: string;
   empresaId: number;

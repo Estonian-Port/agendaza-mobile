@@ -8,12 +8,11 @@ import { Stepper } from '@/components/ui/Stepper';
 import { Checkbox, PriceEditor } from '@/components/ui/Checkbox';
 import { Colors, Radius } from '@/constants/theme';
 import { eventoService } from '@/services/evento.service';
-import { Duracion, EventoVer, Extra } from '@/types/domain';
+import { EventoVer, Extra } from '@/types/domain';
 import { extraService } from '@/services/extra.service';
 import { empresaService } from '@/services/empresa.service';
 
 type EditorSection = 'EXTRAS' | 'CATERING';
-const EVENT_DURATIONS: Duracion[] = ['CORTO', 'MEDIO', 'LARGO'];
 
 interface EventDetailSheetProps {
   open: boolean;
@@ -119,10 +118,10 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
     try {
       let tipoEventoId = event.tipoEventoId;
       if (tipoEventoId === undefined && event.tipoEventoNombre) {
-        const tiposPorDuracion = await Promise.all(
-          EVENT_DURATIONS.map((duracion) => empresaService.getTiposEvento(duracion)),
-        );
-        const tipos = tiposPorDuracion.flat();
+        if (!event.duracion) {
+          throw new Error('No se pudo identificar la duración del evento para cargar las opciones.');
+        }
+        const tipos = await empresaService.getTiposEvento(event.duracion);
         const eventTypeName = normalizeTypeName(event.tipoEventoNombre);
         tipoEventoId = tipos.find((tipo) => normalizeTypeName(tipo.nombre) === eventTypeName)?.id;
       }
