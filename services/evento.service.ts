@@ -11,10 +11,10 @@ import {
   EventoAgenda,
   EventoCatering,
   EventoExtra,
-  EventoHora,
   EventoHoraDTO,
   EventoReservaDTO,
   EventoVer,
+  EventoUsuario,
   EstadoEvento,
   CustomResponse,
 } from '@/types/domain';
@@ -41,6 +41,13 @@ export const eventoService = {
       listaExtraTipoCatering: evento.listaExtraTipoCatering ?? extras.filter((extra) => extra.tipoExtra === 'TIPO_CATERING'),
       listaExtraCateringVariable: evento.listaExtraCateringVariable ?? extras.filter((extra) => extra.tipoExtra === 'VARIABLE_CATERING'),
     };
+  },
+
+  async getEventosByUsuario(usuarioId: number, empresaId: number): Promise<EventoUsuario[]> {
+    const result = await apiGet<{ eventos: EventoUsuario[]; cantidad: number }>(
+      `${BASE}/usuario/${usuarioId}/empresa/${empresaId}`,
+    );
+    return result.eventos;
   },
 
   async getAgenda(): Promise<EventoAgenda[]> {
@@ -80,8 +87,8 @@ export const eventoService = {
     await apiDelete(`${BASE}/${id}`);
   },
 
-  async editEventoHora(evento: EventoHora): Promise<EventoHora> {
-    return apiPut<EventoHora>(`${BASE}/${evento.id}/hora`, evento);
+  async editEventoHora(evento: EventoHoraDTO): Promise<EventoHoraDTO> {
+    return apiPut<EventoHoraDTO>(`${BASE}/${evento.id}/hora`, evento);
   },
 
   async editEventoExtra(evento: EventoExtra): Promise<number> {
@@ -93,7 +100,9 @@ export const eventoService = {
   },
 
   async editEventoAnotaciones(anotacion: string, id: number): Promise<string> {
-    return apiPatch<string>(`${BASE}/${id}/anotaciones`, anotacion);
+    return apiPatch<string>(`${BASE}/${id}/anotaciones`, anotacion, {
+      headers: { 'Content-Type': 'text/plain' },
+    });
   },
 
   async editEventoCapacidad(
@@ -105,7 +114,9 @@ export const eventoService = {
   },
 
   async editEventoNombre(nombre: string, id: number): Promise<string> {
-    return apiPatch<string>(`${BASE}/${id}/nombre`, nombre);
+    return apiPatch<string>(`${BASE}/${id}/nombre`, nombre, {
+      headers: { 'Content-Type': 'text/plain' },
+    });
   },
 
   async reenviarMail(eventoId: number): Promise<boolean> {

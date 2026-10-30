@@ -134,6 +134,18 @@ function makeDateTime(date: string, time: string) {
   return `${date}T${time}:00`;
 }
 
+function addDurationToTime(startTime: string, duration: string) {
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [durationHours, durationMinutes, durationSeconds] = duration.split(':').map(Number);
+  if ([startHour, startMinute, durationHours, durationMinutes, durationSeconds].some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+
+  const totalMinutes = startHour * 60 + startMinute + Math.round(durationHours * 60 + durationMinutes + durationSeconds / 60);
+  const endMinutes = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
+}
+
 function localDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -482,6 +494,15 @@ export default function NuevaReservaScreen() {
   }, [formik.values.fecha, formik.values.horaInicio, formik.values.horaFin]);
 
   const selectedTipo = tiposEvento.find((tipo) => tipo.id === formik.values.tipoEventoId);
+  useEffect(() => {
+    if (!formik.values.horaInicio || !selectedTipo?.cantidadDuracion) return;
+    const horaFin = addDurationToTime(formik.values.horaInicio, selectedTipo.cantidadDuracion);
+    if (horaFin) void formik.setFieldValue('horaFin', horaFin, false);
+  }, [formik.values.horaInicio, formik.values.tipoEventoId, selectedTipo?.cantidadDuracion]);
+
+  const endTimeOptions = formik.values.horaFin && !TIMES.some((option) => option.value === formik.values.horaFin)
+    ? [{ label: formik.values.horaFin, value: formik.values.horaFin }, ...TIMES]
+    : TIMES;
   const guestCount = formik.values.capacidadAdultos + formik.values.capacidadNinos;
   const { quoteTotal, cateringTotal, budget } = useMemo(() => {
     const fixedTotal = extrasFijos
@@ -775,7 +796,7 @@ export default function NuevaReservaScreen() {
                         <Select label="Desde" value={formik.values.horaInicio} options={TIMES} error={!!formik.errors.horaInicio && !!formik.touched.horaInicio} onChange={(value) => void formik.setFieldValue('horaInicio', value)} placeholder="Hora" />
                     </View>
                     <View style={styles.timeField}>
-                        <Select label="Hasta" value={formik.values.horaFin} options={TIMES} error={!!formik.errors.horaFin && !!formik.touched.horaFin} onChange={(value) => void formik.setFieldValue('horaFin', value)} placeholder="Hora" />
+                        <Select label="Hasta" value={formik.values.horaFin} options={endTimeOptions} error={!!formik.errors.horaFin && !!formik.touched.horaFin} onChange={(value) => void formik.setFieldValue('horaFin', value)} placeholder="Hora" />
                     </View>
                   </View>
                   {availability !== 'idle' && (
@@ -968,6 +989,7 @@ export default function NuevaReservaScreen() {
                     onPress={searchClient}
                     loading={clientSearch === 'loading'}
                     icon={<Search size={17} color={Colors.primary} />}
+                    fullWidth
                     style={styles.searchButton}
                   />
                   {clientSearch !== 'idle' && clientSearch !== 'loading' && (

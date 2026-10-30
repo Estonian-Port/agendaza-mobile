@@ -6,11 +6,11 @@ import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, Chevro
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { MovementSheet } from '@/components/finance/MovementSheet';
+import { Toast } from '@/components/ui/Toast';
 import { globalStyles } from '@/constants/styles';
 import { Colors, Radius } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { gastoService } from '@/services/gasto.service';
-import { eventoService } from '@/services/evento.service';
 import { pagoService } from '@/services/pago.service';
 import { Gasto, Pago, ResumenPagosMes } from '@/types/domain';
 
@@ -29,11 +29,10 @@ type MovimientoFinanciero = {
   monto: number;
   esIngreso: boolean;
   titulo: string;
-  etiqueta: string;
+  etiqueta?: string;
   pagoId?: number;
+  gastoId?: number;
   gastos?: Gasto[];
-  eventoId?: number;
-  fechaEvento?: string;
 };
 
 type DatosFinancieros = {
@@ -82,7 +81,7 @@ function toMovimiento(pago: Pago): MovimientoFinanciero {
     monto: pago.monto,
     esIngreso: pago.esIngreso ?? true,
     titulo: pago.descripcion || pago.eventoNombre || pago.nombreEvento || pago.codigo || conceptLabel(pago),
-    etiqueta: pago.medioDePago || pago.medioPago || conceptLabel(pago),
+    etiqueta: conceptLabel(pago),
     pagoId: pago.id,
   };
 }
@@ -93,12 +92,12 @@ function toMovimientoGasto(gasto: Gasto): MovimientoFinanciero {
     fecha: gasto.fecha,
     monto: gasto.monto,
     esIngreso: false,
-    titulo: gasto.descripcion || gasto.tipoGasto,
-    etiqueta: gasto.tipoGasto,
+    titulo: gasto.descripcion || 'Gasto',
+    gastoId: gasto.id,
   };
 }
 
-function toMovimientosGastos(gastos: Gasto[], fechasEvento: Record<number, string>): MovimientoFinanciero[] {
+function toMovimientosGastos(gastos: Gasto[]): MovimientoFinanciero[] {
   const movimientos: MovimientoFinanciero[] = [];
   const grupos = new Map<string, Gasto[]>();
 
@@ -113,16 +112,12 @@ function toMovimientosGastos(gastos: Gasto[], fechasEvento: Record<number, strin
 
   grupos.forEach((gastosDelEvento, key) => {
     const primerGasto = gastosDelEvento[0];
-    const eventoId = primerGasto.eventoId;
     movimientos.push({
       id: `gastos-${key}`,
       fecha: gastosDelEvento.reduce((fecha, gasto) => gasto.fecha > fecha ? gasto.fecha : fecha, primerGasto.fecha),
-      fechaEvento: eventoId !== undefined ? fechasEvento[eventoId] : undefined,
       monto: gastosDelEvento.reduce((total, gasto) => total + gasto.monto, 0),
       esIngreso: false,
       titulo: primerGasto.nombreEvento || primerGasto.codigoEvento || 'Evento',
-      etiqueta: 'Evento',
-      eventoId,
       gastos: gastosDelEvento,
     });
   });
@@ -145,8 +140,10 @@ export default function FinanzasScreen() {
   const [error, setError] = useState<string | null>(null);
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
+  const [editingPago, setEditingPago] = useState<Pago | null>(null);
+  const [editingGasto, setEditingGasto] = useState<Gasto | null>(null);
+  const [toastId, setToastId] = useState<number | null>(null);
   const [expandedExpenseGroups, setExpandedExpenseGroups] = useState<Set<string>>(() => new Set());
-  const [fechasEvento, setFechasEvento] = useState<Record<number, string>>({});
   const requestId = useRef(0);
 
   useEffect(() => {
@@ -212,38 +209,12 @@ export default function FinanzasScreen() {
     };
   }, [mes, usuario?.empresaId, financeRevision]);
 
-  useEffect(() => {
-    let active = true;
-    const eventoIds = [...new Set(gastos.flatMap((gasto) => gasto.eventoId === undefined ? [] : [gasto.eventoId]))];
-    if (eventoIds.length === 0) {
-      setFechasEvento({});
-      return () => {
-        active = false;
-      };
-    }
-
-    Promise.all(eventoIds.map(async (eventoId) => {
-      try {
-        const evento = await eventoService.getEventoVer(eventoId);
-        return [eventoId, evento.inicio] as const;
-      } catch {
-        return [eventoId, ''] as const;
-      }
-    })).then((resultados) => {
-      if (active) setFechasEvento(Object.fromEntries(resultados));
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [gastos]);
-
   const cargarMas = () => setVisibleCount((actual) => actual + PAGE_SIZE);
 
   const movimientos = useMemo(() => [
     ...pagos.map(toMovimiento),
-    ...toMovimientosGastos(gastos, fechasEvento),
-  ].sort((a, b) => b.fecha.localeCompare(a.fecha)), [pagos, gastos, fechasEvento]);
+    ...toMovimientosGastos(gastos),
+  ].sort((a, b) => b.fecha.localeCompare(a.fecha)), [pagos, gastos]);
   const movimientosFiltrados = useMemo(() => movimientos.filter((movimiento) => {
     if (filtro === 'INGRESOS') return movimiento.esIngreso;
     if (filtro === 'EGRESOS') return !movimiento.esIngreso;
@@ -252,6 +223,30 @@ export default function FinanzasScreen() {
   const cantidadMovimientos = resumen?.cantidadMovimientos
     ?? (resumen?.cantidadIngresos ?? 0) + (resumen?.cantidadEgresos ?? 0);
   const hasMore = movimientosFiltrados.length > visibleCount;
+
+  const abrirPago = (pago: Pago) => {
+    setEditingPago(pago);
+    setEditingGasto(null);
+    setMovementSheetOpen(true);
+  };
+
+  const abrirGasto = (gasto: Gasto) => {
+    setEditingPago(null);
+    setEditingGasto(gasto);
+    setMovementSheetOpen(true);
+  };
+
+  const cerrarMovementSheet = () => {
+    setMovementSheetOpen(false);
+    setEditingPago(null);
+    setEditingGasto(null);
+  };
+
+  const abrirNuevoMovimiento = () => {
+    setEditingPago(null);
+    setEditingGasto(null);
+    setMovementSheetOpen(true);
+  };
 
   const cambiarMes = (cantidad: number) => {
     setMes((actual) => new Date(actual.getFullYear(), actual.getMonth() + cantidad, 1));
@@ -291,6 +286,7 @@ export default function FinanzasScreen() {
   };
 
   return (
+    <View style={styles.screen}>
     <ScrollView contentContainerStyle={[globalStyles.screenContent, styles.content]}>
       <Card radius="panel" shadow="soft" style={styles.heading}>
         <View style={styles.headingCopy}>
@@ -300,7 +296,7 @@ export default function FinanzasScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Nuevo movimiento"
-          onPress={() => setMovementSheetOpen(true)}
+          onPress={abrirNuevoMovimiento}
           style={styles.addButton}
         >
           <Plus size={21} color={Colors.white} />
@@ -410,7 +406,7 @@ export default function FinanzasScreen() {
                             <Text style={styles.movementTitle} numberOfLines={1}>{movimiento.titulo}</Text>
                             <View style={styles.movementMeta}>
                               <Text style={styles.movementDate}>
-                                {dateLabel(movimiento.fechaEvento || movimiento.fecha)}
+                                {dateLabel(movimiento.fecha)}
                               </Text>
                               <Text style={styles.conceptTag}>Evento</Text>
                             </View>
@@ -423,10 +419,10 @@ export default function FinanzasScreen() {
                         {grupoExpandido && (
                           <View style={styles.expenseDetails}>
                             {movimiento.gastos.map((gasto) => (
-                              <View key={gasto.id} style={styles.expenseDetailRow}>
-                                <Text style={styles.expenseDescription}>{gasto.descripcion || gasto.tipoGasto}</Text>
+                              <Pressable key={gasto.id} accessibilityRole="button" onPress={() => abrirGasto(gasto)} style={styles.expenseDetailRow}>
+                                <Text style={styles.expenseDescription}>{gasto.descripcion || 'Gasto'}</Text>
                                 <Text style={styles.expenseAmount}>-{moneda.format(gasto.monto)}</Text>
-                              </View>
+                              </Pressable>
                             ))}
                           </View>
                         )}
@@ -434,41 +430,50 @@ export default function FinanzasScreen() {
                     );
                   }
                   return (
-                    <View
-                      key={movimiento.id}
-                      style={[styles.movementCard, index < movimientosFiltrados.length - 1 && styles.movementCardDivider]}
-                    >
-                      <View style={[styles.movementIcon, { backgroundColor: esIngreso ? '#e9f6ef' : '#fcebed' }]}>
-                        <Icon size={19} color={tint} />
-                      </View>
-                      <View style={styles.movementDetails}>
-                        <Text style={styles.movementTitle} numberOfLines={1}>
-                          {movimiento.titulo}
-                        </Text>
-                        <View style={styles.movementMeta}>
-                          <Text style={styles.movementDate}>{dateLabel(movimiento.fecha)}</Text>
-                          <Text style={styles.conceptTag}>{movimiento.etiqueta}</Text>
+                    <View key={movimiento.id} style={[styles.movementCard, index < movimientosFiltrados.length - 1 && styles.movementCardDivider]}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          if (movimiento.pagoId !== undefined) {
+                            const pago = pagos.find((item) => item.id === movimiento.pagoId);
+                            if (pago) abrirPago(pago);
+                          } else if (movimiento.gastoId !== undefined) {
+                            const gasto = gastos.find((item) => item.id === movimiento.gastoId);
+                            if (gasto) abrirGasto(gasto);
+                          }
+                        }}
+                        style={styles.movementPressable}
+                      >
+                        <View style={[styles.movementIcon, { backgroundColor: esIngreso ? '#e9f6ef' : '#fcebed' }]}>
+                          <Icon size={19} color={tint} />
                         </View>
-                      </View>
-                      <View style={styles.amountAndDownload}>
-                        <Text style={[styles.amount, { color: tint }]}>
-                          {esIngreso ? '+' : '-'}{moneda.format(movimiento.monto)}
-                        </Text>
-                        {movimiento.pagoId !== undefined && (
-                          <Pressable
-                            accessibilityLabel={`Descargar comprobante del movimiento ${movimiento.pagoId}`}
-                            disabled={descargandoId !== null}
-                            onPress={() => void descargarComprobante(movimiento.pagoId!)}
-                            style={styles.downloadButton}
-                          >
-                            {descargandoId === movimiento.pagoId ? (
-                              <ActivityIndicator size="small" color={Colors.primary} />
-                            ) : (
-                              <Download size={17} color={Colors.primary} />
-                            )}
-                          </Pressable>
-                        )}
-                      </View>
+                        <View style={styles.movementDetails}>
+                          <Text style={styles.movementTitle} numberOfLines={1}>{movimiento.titulo}</Text>
+                          <View style={styles.movementMeta}>
+                            <Text style={styles.movementDate}>{dateLabel(movimiento.fecha)}</Text>
+                            {!!movimiento.etiqueta && <Text style={styles.conceptTag}>{movimiento.etiqueta}</Text>}
+                          </View>
+                        </View>
+                        <View style={styles.amountAndDownload}>
+                          <Text style={[styles.amount, { color: tint }]}>
+                            {esIngreso ? '+' : '-'}{moneda.format(movimiento.monto)}
+                          </Text>
+                        </View>
+                      </Pressable>
+                      {movimiento.pagoId !== undefined && (
+                        <Pressable
+                          accessibilityLabel={`Descargar comprobante del movimiento ${movimiento.pagoId}`}
+                          disabled={descargandoId !== null}
+                          onPress={() => void descargarComprobante(movimiento.pagoId!)}
+                          style={styles.downloadButton}
+                        >
+                          {descargandoId === movimiento.pagoId ? (
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                          ) : (
+                            <Download size={17} color={Colors.primary} />
+                          )}
+                        </Pressable>
+                      )}
                     </View>
                   );
                 })}
@@ -477,7 +482,7 @@ export default function FinanzasScreen() {
 
             {hasMore && (
               <Button
-                label="Cargar 10 más"
+                label="Cargar más"
                 variant="outline"
                 size="sm"
                 onPress={cargarMas}
@@ -491,13 +496,20 @@ export default function FinanzasScreen() {
       {usuario && (
         <MovementSheet
           open={movementSheetOpen}
-          initialType="PAGO"
+          initialType={editingGasto ? 'GASTO' : 'PAGO'}
+          initialPago={editingPago}
+          initialGasto={editingGasto}
           usuario={usuario}
-          onClose={() => setMovementSheetOpen(false)}
-          onSaved={notifyFinanceChanged}
+          onClose={cerrarMovementSheet}
+          onSaved={() => {
+            notifyFinanceChanged();
+            if (editingPago || editingGasto) setToastId((current) => (current ?? 0) + 1);
+          }}
         />
       )}
     </ScrollView>
+    {toastId !== null && <Toast key={toastId} message="Cambios guardados" onDismiss={() => setToastId(null)} />}
+    </View>
   );
 }
 
@@ -526,6 +538,7 @@ function SummaryCard({
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   content: { backgroundColor: Colors.neutralBg },
   heading: {
     flexDirection: 'row',
@@ -649,6 +662,7 @@ const styles = StyleSheet.create({
     gap: 11,
     paddingVertical: 12,
   },
+  movementPressable: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 11 },
   movementCardDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
   movementIcon: {
     width: 38,

@@ -8,6 +8,7 @@ interface UsuarioMeDTO {
   email?: string;
   nombre?: string;
   apellido?: string;
+  celular?: string | number;
   rol?: string;
   cargo?: string | { nombre?: string };
   empresaId?: number;
@@ -75,6 +76,7 @@ export const authService = {
         email: usuarioDTO.email,
         nombre: usuarioDTO.nombre ?? '',
         apellido: usuarioDTO.apellido ?? '',
+        celular: usuarioDTO.celular === undefined ? undefined : String(usuarioDTO.celular),
         rol: mapRol(usuarioDTO.rol ?? usuarioDTO.cargo),
         empresaId: usuarioDTO.empresaId ?? 0,
         empresaNombre: usuarioDTO.empresaNombre,

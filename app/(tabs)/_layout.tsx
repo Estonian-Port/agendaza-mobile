@@ -28,7 +28,7 @@ const ROLE_TABS: Record<Rol, { name: string; title: string; icon: any; roles: Ro
 };
 
 export const unstable_settings = {
-  initialRouteName: 'calendario',
+  anchor: 'calendario',
 };
 
 export default function TabLayout() {
@@ -45,6 +45,7 @@ export default function TabLayout() {
 
   const tabs = ROLE_TABS[usuario.rol];
   const currentTab = pathname.split('/').pop();
+  const empresaActiva = agendas.find((agenda) => agenda.id === usuario.empresaId);
 
   const openTab = (name: string) => {
     if (currentTab === name) return;
@@ -182,6 +183,8 @@ export default function TabLayout() {
                     <Text style={styles.detailValue}>{usuario.nombre} {usuario.apellido}</Text>
                     <Text style={styles.detailLabel}>Correo</Text>
                     <Text style={styles.detailValue}>{usuario.email}</Text>
+                    <Text style={styles.detailLabel}>Teléfono</Text>
+                    <Text style={styles.detailValue}>{usuario.celular || 'No informado'}</Text>
                     <Text style={styles.detailLabel}>Rol</Text>
                     <Text style={styles.detailValue}>{usuario.rol}</Text>
                   </>
@@ -189,8 +192,12 @@ export default function TabLayout() {
                   <>
                     <Text style={styles.detailLabel}>Nombre</Text>
                     <Text style={styles.detailValue}>{usuario.empresaNombre || 'Empresa'}</Text>
-                    <Text style={styles.detailLabel}>Identificador</Text>
-                    <Text style={styles.detailValue}>{usuario.empresaId}</Text>
+                    <Text style={styles.detailLabel}>Dirección</Text>
+                    <Text style={styles.detailValue}>
+                      {[empresaActiva?.calle, empresaActiva?.numero].filter((value) => value !== undefined && value !== '').join(' ') || 'No informada'}
+                    </Text>
+                    <Text style={styles.detailLabel}>Municipio</Text>
+                    <Text style={styles.detailValue}>{empresaActiva?.municipio || 'No informado'}</Text>
                   </>
                 )}
               </>

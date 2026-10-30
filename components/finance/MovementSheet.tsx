@@ -55,6 +55,8 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
   const [evento, setEvento] = useState<Evento | null>(null);
   const [pagoBase, setPagoBase] = useState<Pago | null>(null);
   const [monto, setMonto] = useState('');
+  const [fechaPago, setFechaPago] = useState(fechaLocal);
+  const [descripcionPago, setDescripcionPago] = useState('');
   const [medioDePago, setMedioDePago] = useState('');
   const [concepto, setConcepto] = useState('');
   const [numeroCuota, setNumeroCuota] = useState('');
@@ -88,6 +90,8 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
     setEvento(initialEvent);
     setPagoBase(initialPago);
     setMonto(initialPago ? String(initialPago.monto) : initialGasto ? String(initialGasto.monto) : '');
+    setFechaPago(initialPago?.fecha?.slice(0, 16) || fechaLocal());
+    setDescripcionPago(initialPago?.descripcion || '');
     setMedioDePago(initialPago?.medioDePago || initialPago?.medioPago || initialGasto?.medioDePago || '');
     setConcepto(initialPago?.concepto || '');
     setNumeroCuota(initialPago?.numeroCuota ?? '');
@@ -125,6 +129,8 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
           const basePago = await pagoService.getEventoForSavePago(initialEvent.id);
           setPagoBase(basePago);
           setMonto(basePago.monto > 0 ? String(basePago.monto) : '');
+          setFechaPago(basePago.fecha?.slice(0, 16) || fechaLocal());
+          setDescripcionPago(basePago.descripcion || '');
           setMedioDePago(basePago.medioDePago || basePago.medioPago || medios[0] || '');
           setConcepto(basePago.concepto || conceptosDisponibles[0] || '');
           setNumeroCuota(basePago.numeroCuota || '');
@@ -152,6 +158,8 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
         const basePago = await pagoService.getEventoForSavePago(seleccionado.id);
         setPagoBase(basePago);
         setMonto(basePago.monto > 0 ? String(basePago.monto) : '');
+        setFechaPago(basePago.fecha?.slice(0, 16) || fechaLocal());
+        setDescripcionPago(basePago.descripcion || '');
         setMedioDePago(basePago.medioDePago || basePago.medioPago || mediosPago[0] || '');
         setConcepto(basePago.concepto || conceptos[0] || '');
         setNumeroCuota(basePago.numeroCuota || '');
@@ -220,7 +228,7 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
     }
 
     if (tipo === 'PAGO') {
-      if (!evento || !pagoBase) {
+      if ((!evento && !initialPago) || !pagoBase) {
         setError('Buscá y seleccioná el evento del pago.');
         return;
       }
@@ -232,8 +240,10 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
       try {
         await pagoService.save({
           ...pagoBase,
-          eventoId: evento.id,
+          eventoId: evento?.id ?? pagoBase.eventoId,
+          fecha: fechaPago,
           monto: montoNumerico,
+          descripcion: descripcionPago.trim() || undefined,
           medioDePago,
           concepto,
           numeroCuota: concepto === 'CUOTA' ? numeroCuota.trim() : undefined,
@@ -253,7 +263,7 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
       setError('Completá el tipo y la descripción del gasto.');
       return;
     }
-    if (gasto.tipoGasto === 'EVENTO' && !evento) {
+    if (gasto.tipoGasto === 'EVENTO' && !evento && !gasto.eventoId) {
       setError('El tipo EVENTO requiere vincular un evento.');
       return;
     }
@@ -326,6 +336,18 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
               accessory={!isEditing ? <Text style={styles.changeEventText}>Cambiar</Text> : undefined}
               onPress={isEditing ? () => undefined : quitarEvento}
             />
+          ) : tipo === 'PAGO' && initialPago ? (
+            <View style={styles.linkedEvent}>
+              <Text style={styles.linkedEventTitle}>{initialPago.eventoNombre || initialPago.nombreEvento || 'Pago sin evento'}</Text>
+              {!!(initialPago.codigo || initialPago.eventoId) && (
+                <Text style={styles.linkedEventMeta}>{initialPago.codigo || `Evento #${initialPago.eventoId}`}</Text>
+              )}
+            </View>
+          ) : tipo === 'GASTO' && isEditing && gasto.eventoId != null ? (
+            <View style={styles.linkedEvent}>
+              <Text style={styles.linkedEventTitle}>{gasto.nombreEvento || 'Gasto de evento'}</Text>
+              {!!gasto.codigoEvento && <Text style={styles.linkedEventMeta}>Código {gasto.codigoEvento}</Text>}
+            </View>
           ) : (
             <>
               <View style={styles.searchSwitch}>
@@ -372,8 +394,10 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
           )}
 
           {tipo === 'PAGO' ? (
-            evento && pagoBase ? (
+            (evento || isEditing) && pagoBase ? (
               <View style={styles.formFields}>
+                <Input label="Fecha y hora" value={fechaPago} onChangeText={setFechaPago} placeholder="AAAA-MM-DDTHH:mm" />
+                <Input label="Descripción" value={descripcionPago} onChangeText={setDescripcionPago} placeholder="Detalle del pago" />
                 <Input label="Monto" value={monto} onChangeText={setMonto} placeholder="0" keyboardType="numeric" />
                 <Select label="Medio de pago" value={medioDePago} options={mediosOptions} onChange={(value) => setMedioDePago(String(value))} placeholder="Seleccionar medio" />
                 <Select label="Concepto" value={concepto} options={conceptosOptions} onChange={(value) => setConcepto(String(value))} placeholder="Seleccionar concepto" />
@@ -396,7 +420,7 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
             icon={<Check size={17} color={Colors.white} />}
             onPress={() => void guardar()}
             loading={guardando}
-            disabled={cargandoEvento || (tipo === 'PAGO' && !evento) || (tipo === 'GASTO' && gasto.tipoGasto === 'EVENTO' && !evento)}
+            disabled={cargandoEvento || (tipo === 'PAGO' && !evento && !isEditing) || (tipo === 'GASTO' && gasto.tipoGasto === 'EVENTO' && !evento && !gasto.eventoId)}
             fullWidth
             style={styles.saveButton}
           />
@@ -429,6 +453,9 @@ const styles = StyleSheet.create({
   searchLabel: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.text },
   searchLabelSelected: { color: Colors.primary },
   changeEventText: { fontFamily: 'Inter-SemiBold', fontSize: 12, color: Colors.primary },
+  linkedEvent: { marginBottom: 8, padding: 12, borderWidth: 1, borderColor: Colors.borderSoft, borderRadius: Radius.button, backgroundColor: Colors.white },
+  linkedEventTitle: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textDark },
+  linkedEventMeta: { marginTop: 3, fontFamily: 'Inter-Regular', fontSize: 12, color: Colors.text },
   formFields: { marginTop: 16 },
   loader: { marginVertical: 36 },
   error: { marginTop: 8, marginBottom: 12, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.danger },

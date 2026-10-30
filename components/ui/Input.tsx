@@ -1,5 +1,5 @@
 import React, { ReactNode, useRef } from 'react';
-import { findNodeHandle, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance, type ViewStyle } from 'react-native';
+import { findNodeHandle, Platform, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance, type ViewStyle } from 'react-native';
 import { Colors, Radius, Typography } from '@/constants/theme';
 import { useKeyboardScrollFocus } from '@/components/ui/KeyboardScrollContext';
 
@@ -68,6 +68,7 @@ export function Input({
           numberOfLines={numberOfLines}
           onBlur={onBlur}
           onFocus={() => {
+            if (Platform.OS === 'web') return;
             const input = inputRef.current;
             const inputHandle = findNodeHandle(input);
             if (input && inputHandle != null) {

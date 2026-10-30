@@ -9,6 +9,7 @@ export interface Usuario {
   nombre: string;
   apellido: string;
   rol: Rol;
+  celular?: string;
   empresaId: number;
   empresaNombre?: string;
 }
@@ -50,6 +51,7 @@ export interface ExtraPrecioDTO {
 
 export interface TipoEvento extends GenericItem {
   duracion: Duracion;
+  cantidadDuracion: string;
   precioBase: number;
   listaServicio: GenericItem[];
 }
@@ -58,15 +60,30 @@ export interface Servicio extends GenericItem {}
 
 export interface Empresa extends GenericItem {
   direccion?: string;
-  telefono?: string;
+  telefono?: string | number;
+  calle?: string;
+  numero?: number;
+  municipio?: string;
 }
 
 export interface Cliente {
   id?: number;
+  username?: string;
   nombre: string;
   apellido: string;
   celular?: string;
   email?: string;
+}
+
+export interface EventoUsuario {
+  id: number;
+  nombre: string;
+  codigo: string;
+  usuarioId: number;
+  usuarioNombre: string;
+  usuarioApellido: string;
+  usuarioUsername?: string;
+  fechaEvento: string;
 }
 
 export type EstadoEvento =

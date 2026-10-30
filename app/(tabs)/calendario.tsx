@@ -9,6 +9,7 @@ import { MovementSheet } from '@/components/finance/MovementSheet';
 import { EventDetailSheet } from '@/components/calendar/EventDetailSheet';
 import { EventAccountSheet } from '@/components/calendar/EventAccountSheet';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { Toast } from '@/components/ui/Toast';
 import { globalStyles } from '@/constants/styles';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
@@ -61,6 +62,7 @@ export default function CalendarioScreen() {
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [accountRefreshKey, setAccountRefreshKey] = useState(0);
+  const [toastId, setToastId] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -162,6 +164,7 @@ export default function CalendarioScreen() {
   const movementTitle = editingPayment ? 'Editar pago' : editingExpense ? 'Editar gasto' : movementType === 'PAGO' ? 'Registrar pago' : 'Registrar gasto';
 
   return (
+    <View style={styles.screen}>
     <ScrollView contentContainerStyle={[globalStyles.screenContent, styles.content]}>
       <Card radius="panel" shadow="soft" style={styles.heading}>
         <Text style={globalStyles.pageTitle}>Hola {usuario?.nombre ?? ''}!</Text>
@@ -340,7 +343,12 @@ export default function CalendarioScreen() {
               setEditingExpense(null);
               setReturnToAccount(false);
             }}
-            onUpdated={() => setRefreshKey((current) => current + 1)}
+            onUpdated={(date) => {
+              if (date) setSelectedDate(date);
+              setRefreshKey((current) => current + 1);
+              setEventDetailId(null);
+              setToastId((current) => (current ?? 0) + 1);
+            }}
             onOpenAccount={abrirEstadoCuenta}
           />
           <MovementSheet
@@ -359,10 +367,13 @@ export default function CalendarioScreen() {
         </>
       )}
     </ScrollView>
+    {toastId !== null && <Toast key={toastId} message="Cambios guardados" onDismiss={() => setToastId(null)} />}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   content: { backgroundColor: Colors.neutralBg },
   heading: {
     marginBottom: 18,

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { findNodeHandle, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
+import { findNodeHandle, Platform, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { Colors, Radius, Typography } from '@/constants/theme';
 import { useKeyboardScrollFocus } from '@/components/ui/KeyboardScrollContext';
 
@@ -60,6 +60,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, 
             value={draft}
             onChangeText={handleTextChange}
             onFocus={() => {
+              if (Platform.OS === 'web') return;
               const input = inputRef.current;
               const inputHandle = findNodeHandle(input);
               if (input && inputHandle != null) {

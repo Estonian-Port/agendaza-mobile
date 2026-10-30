@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeft, Check, Save } from 'lucide-react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { Asterisk, ArrowLeft, DollarSign, Receipt, Save, UserRound, Utensils } from 'lucide-react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -8,9 +8,11 @@ import { Stepper } from '@/components/ui/Stepper';
 import { Checkbox, PriceEditor } from '@/components/ui/Checkbox';
 import { Colors, Radius } from '@/constants/theme';
 import { eventoService } from '@/services/evento.service';
-import { EventoVer, Extra } from '@/types/domain';
+import { EventoUsuario, EventoVer, Extra } from '@/types/domain';
 import { extraService } from '@/services/extra.service';
 import { empresaService } from '@/services/empresa.service';
+import { getEmpresaActivaId } from '@/services/empresa.service';
+import { usuarioService } from '@/services/usuario.service';
 
 type EditorSection = 'EXTRAS' | 'CATERING';
 
@@ -23,7 +25,7 @@ interface EventDetailSheetProps {
   accountContent: React.ReactNode;
   onClose: () => void;
   onCloseAccount: () => void;
-  onUpdated: () => void;
+  onUpdated: (date?: string) => void;
   onOpenAccount: (event: EventoVer) => void;
 }
 
@@ -33,6 +35,13 @@ function localDateKey(value: string) {
 
 function formatTime(value: string) {
   return value.slice(11, 16);
+}
+
+function formatEventDate(value?: string) {
+  if (!value) return 'Sin fecha';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
+  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed);
 }
 
 function makeDateTime(date: string, time: string) {
@@ -76,6 +85,14 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingSection, setEditingSection] = useState<EditorSection | null>(null);
+  const [editingClient, setEditingClient] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [clientSurname, setClientSurname] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientEvents, setClientEvents] = useState<EventoUsuario[]>([]);
+  const [loadingClientEvents, setLoadingClientEvents] = useState(false);
+  const [clientEventsError, setClientEventsError] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -85,6 +102,7 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
     setError('');
     setEvent(null);
     setEditingSection(null);
+    setEditingClient(false);
     const load = async () => {
       try {
         const loadedEvent = await eventoService.getEventoVer(eventId);
@@ -108,6 +126,27 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
       active = false;
     };
   }, [open, eventId]);
+
+  useEffect(() => {
+    if (!editingClient || !event?.cliente.id) return;
+    let active = true;
+    setLoadingClientEvents(true);
+    setClientEventsError('');
+    const loadClientEvents = async () => {
+      try {
+        const events = await eventoService.getEventosByUsuario(event.cliente.id!, getEmpresaActivaId());
+        if (active) setClientEvents(events);
+      } catch (cause) {
+        if (active) setClientEventsError(errorText(cause));
+      } finally {
+        if (active) setLoadingClientEvents(false);
+      }
+    };
+    void loadClientEvents();
+    return () => {
+      active = false;
+    };
+  }, [editingClient, event?.cliente.id]);
 
   const openEditor = async (section: EditorSection) => {
     if (!event) return;
@@ -241,11 +280,75 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
     try {
       await Promise.all([
         eventoService.editEventoNombre(name.trim(), event.id),
-        eventoService.editEventoHora({ id: event.id, inicio: start, fin: end }),
+        eventoService.editEventoHora({
+          id: event.id,
+          nombre: name.trim(),
+          codigo: event.codigo,
+          inicio: start,
+          fin: end,
+        }),
         eventoService.editEventoCapacidad(event.id, adultCount, childCount),
-        eventoService.editEventoAnotaciones(description, event.id),
+        ...(description !== (event.anotaciones ?? '')
+          ? [eventoService.editEventoAnotaciones(description, event.id)]
+          : []),
       ]);
       setEvent({ ...event, nombre: name.trim(), inicio: start, fin: end, capacidadAdultos: adultCount, capacidadNinos: childCount, anotaciones: description });
+      onUpdated(start.slice(0, 10));
+    } catch (cause) {
+      setError(errorText(cause));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openClientEditor = () => {
+    if (!event || event.cliente.username?.trim()) return;
+    setClientName(event.cliente.nombre);
+    setClientSurname(event.cliente.apellido);
+    setClientPhone(String(event.cliente.celular ?? ''));
+    setClientEmail(event.cliente.email ?? '');
+    setClientEvents([]);
+    setClientEventsError('');
+    setError('');
+    setEditingClient(true);
+  };
+
+  const saveClient = async () => {
+    if (!event || event.cliente.username?.trim()) return;
+    const clientId = event.cliente.id;
+    const trimmedName = clientName.trim();
+    const trimmedSurname = clientSurname.trim();
+    const trimmedPhone = clientPhone.trim();
+    if (clientId === undefined) {
+      setError('No se pudo identificar al cliente.');
+      return;
+    }
+    if (!trimmedName || !trimmedSurname) {
+      setError('Ingresá el nombre y apellido del cliente.');
+      return;
+    }
+    if (trimmedPhone && !/^\d+$/.test(trimmedPhone)) {
+      setError('Ingresá un teléfono válido.');
+      return;
+    }
+
+    const updatedClient = {
+      id: clientId,
+      nombre: trimmedName,
+      apellido: trimmedSurname,
+      username: event.cliente.username ?? '',
+      email: clientEmail.trim(),
+      celular: trimmedPhone || undefined,
+    };
+    setError('');
+    setSaving(true);
+    try {
+      await usuarioService.editCliente({
+        ...updatedClient,
+        celular: trimmedPhone ? Number(trimmedPhone) : undefined,
+      });
+      setEvent((current) => current ? { ...current, cliente: { ...current.cliente, ...updatedClient } } : current);
+      setEditingClient(false);
       onUpdated();
     } catch (cause) {
       setError(errorText(cause));
@@ -304,7 +407,7 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={accountOpen ? accountTitle : editingSection ? (editingSection === 'EXTRAS' ? 'Editar extras' : 'Editar catering') : 'Ver evento'} height="94%">
+    <BottomSheet open={open} onClose={onClose} title={accountOpen ? accountTitle : editingClient ? 'Editar cliente' : editingSection ? (editingSection === 'EXTRAS' ? 'Editar extras' : 'Editar catering') : 'Ver evento'} height="94%">
       {loading ? <ActivityIndicator color={Colors.primary} style={styles.loader} /> : !event ? (
         <Text style={styles.error}>{error || 'No se pudo cargar el evento.'}</Text>
       ) : accountOpen ? (
@@ -319,6 +422,43 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
             />
           )}
           {accountContent}
+        </>
+      ) : editingClient ? (
+        <>
+          <Button
+            label="Volver al evento"
+            variant="ghost"
+            size="sm"
+            icon={<ArrowLeft size={16} color={Colors.primary} />}
+            onPress={() => { setEditingClient(false); setError(''); }}
+          />
+          <Input label="Nombre" value={clientName} onChangeText={setClientName} />
+          <Input label="Apellido" value={clientSurname} onChangeText={setClientSurname} />
+          <Input label="Teléfono" value={clientPhone} onChangeText={setClientPhone} keyboardType="phone-pad" />
+          <Input label="Email" value={clientEmail} onChangeText={setClientEmail} keyboardType="email-address" />
+          {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+          <Button
+            label="Guardar cliente"
+            icon={<Save size={17} color={Colors.white} />}
+            onPress={() => void saveClient()}
+            loading={saving}
+            fullWidth
+            style={styles.saveButton}
+          />
+          <Text style={styles.sectionTitle}>Eventos del cliente</Text>
+          {loadingClientEvents ? <ActivityIndicator color={Colors.primary} style={styles.loader} /> : clientEventsError ? (
+            <Text style={styles.error}>{clientEventsError}</Text>
+          ) : clientEvents.length === 0 ? (
+            <Text style={styles.emptyExtras}>No hay eventos para mostrar.</Text>
+          ) : clientEvents.map((clientEvent) => (
+            <View key={clientEvent.id} style={styles.clientEventRow}>
+              <View style={styles.clientEventInfo}>
+                <Text style={styles.clientEventName}>{clientEvent.nombre}</Text>
+                <Text style={styles.clientMeta}>{clientEvent.codigo}</Text>
+              </View>
+              <Text style={styles.clientEventDate}>{formatEventDate(clientEvent.fechaEvento)}</Text>
+            </View>
+          ))}
         </>
       ) : editingSection ? (
         <>
@@ -429,6 +569,19 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
             <Text style={styles.eventCode}>{event.codigo} · {event.estado}</Text>
             <Text style={styles.budget}>{formatCurrency(event.presupuesto)}</Text>
           </View>
+          <Button
+            label="Estado de cuenta"
+            variant="outline"
+            icon={(
+              <View style={styles.accountIcon}>
+                <Receipt size={19} color={Colors.primary} />
+                <DollarSign size={10} color={Colors.primary} style={styles.accountIconCurrency} />
+              </View>
+            )}
+            onPress={() => onOpenAccount(event)}
+            fullWidth
+            style={styles.movementActions}
+          />
 
           <Text style={styles.sectionTitle}>Evento</Text>
           <Input label="Nombre" value={name} onChangeText={setName} />
@@ -442,43 +595,69 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
             <View style={styles.half}><Input label="Niños" value={children} onChangeText={setChildren} keyboardType="numeric" /></View>
           </View>
           <Input label="Descripción / anotaciones" value={description} onChangeText={setDescription} />
+          {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+          <Button label="Guardar cambios" icon={<Save size={17} color={Colors.white} />} onPress={() => void save()} loading={saving} fullWidth style={styles.saveButton} />
 
           <Text style={styles.sectionTitle}>Cliente</Text>
           <View style={styles.clientPanel}>
             <Text style={styles.clientName}>{event.cliente.nombre} {event.cliente.apellido}</Text>
-            {!!event.cliente.celular && <Text style={styles.clientMeta}>{event.cliente.celular}</Text>}
+            {!!event.cliente.celular && <Text style={styles.clientMeta}>{String(event.cliente.celular)}</Text>}
             {!!event.cliente.email && (
               <Text style={styles.clientMeta}>
                 {event.cliente.email.startsWith('sin-email') ? 'Sin email' : event.cliente.email}
               </Text>
             )}
           </View>
+          {!event.cliente.username?.trim() && (
+            <Button
+              label="Editar cliente"
+              variant="outline"
+              icon={<UserRound size={17} color={Colors.primary} />}
+              onPress={openClientEditor}
+              fullWidth
+            />
+          )}
 
           <Text style={styles.sectionTitle}>Extras</Text>
           <SelectedExtraList title="Fijos" items={event.listaExtra} />
           <SelectedExtraList title="Variables" items={event.listaExtraVariable} />
           {(event.extraOtroDescripcion || event.extraOtro > 0) && (
-            <View style={styles.customCatering}>
-              <Text style={styles.extraName}>{event.extraOtroDescripcion || 'Otro extra'}</Text>
-              <Text style={styles.extraPrice}>{formatCurrency(event.extraOtro)}</Text>
+            <View style={styles.selectedGroup}>
+              <Text style={styles.groupTitle}>Otro</Text>
+              <View style={styles.selectedExtra}>
+                <Text style={styles.extraName}>{event.extraOtroDescripcion || 'Otro extra'}</Text>
+                <Text style={styles.extraPrice}>{formatCurrency(event.extraOtro)}</Text>
+              </View>
             </View>
           )}
-          <Button label="Editar extras" variant="outline" onPress={() => void openEditor('EXTRAS')} fullWidth />
+          <Button
+            label="Editar extras"
+            variant="outline"
+            icon={<Asterisk size={17} color={Colors.primary} />}
+            onPress={() => void openEditor('EXTRAS')}
+            fullWidth
+          />
 
           <Text style={styles.sectionTitle}>Catering</Text>
           <SelectedExtraList title="Tipo de catering" items={event.listaExtraTipoCatering} />
           <SelectedExtraList title="Extras de catering" items={event.listaExtraCateringVariable} />
           {(event.cateringOtroDescripcion || event.cateringOtro > 0) && (
-            <View style={styles.customCatering}>
-              <Text style={styles.extraName}>{event.cateringOtroDescripcion || 'Catering personalizado'}</Text>
-              <Text style={styles.extraPrice}>{formatCurrency(event.cateringOtro)}</Text>
+            <View style={styles.selectedGroup}>
+              <Text style={styles.groupTitle}>Otro</Text>
+              <View style={styles.selectedExtra}>
+                <Text style={styles.extraName}>{event.cateringOtroDescripcion || 'Catering personalizado'}</Text>
+                <Text style={styles.extraPrice}>{formatCurrency(event.cateringOtro)}</Text>
+              </View>
             </View>
           )}
-          <Button label="Editar catering" variant="outline" onPress={() => void openEditor('CATERING')} fullWidth />
+          <Button
+            label="Editar catering"
+            variant="outline"
+            icon={<Utensils size={17} color={Colors.primary} />}
+            onPress={() => void openEditor('CATERING')}
+            fullWidth
+          />
 
-          {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-          <Button label="Guardar cambios" icon={<Save size={17} color={Colors.white} />} onPress={() => void save()} loading={saving} fullWidth style={styles.saveButton} />
-          <Button label="Estado de cuenta" variant="outline" onPress={() => onOpenAccount(event)} fullWidth style={styles.movementActions} />
         </>
       )}
     </BottomSheet>
@@ -491,7 +670,7 @@ function SelectedExtraList({ title, items }: { title: string; items: Extra[] }) 
       <Text style={styles.groupTitle}>{title}</Text>
       {items.length === 0 ? <Text style={styles.emptyExtras}>Sin opciones seleccionadas</Text> : items.map((item) => (
         <View key={item.id} style={styles.selectedExtra}>
-          <Text style={styles.extraName}>{item.nombre}{item.cantidad > 1 ? ` · ${item.cantidad}` : ''}</Text>
+          <Text style={styles.extraName}>{item.nombre}{item.cantidad > 1 ? ` · x${item.cantidad}` : ''}</Text>
           <Text style={styles.extraPrice}>{formatCurrency(item.precio * item.cantidad)}</Text>
         </View>
       ))}
@@ -546,6 +725,17 @@ function VariableExtraOption({ extra, quantity, onPriceChange, onQuantityChange 
 }
 
 const styles = StyleSheet.create({
+  accountIcon: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+  },
+  accountIconCurrency: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    backgroundColor: Colors.white,
+  },
   loader: { marginVertical: 36 },
   identity: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
   eventCode: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.text },
@@ -553,14 +743,17 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textDark, marginTop: 16, marginBottom: 10 },
   timeRow: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
-  clientPanel: { padding: 12, borderWidth: 1, borderColor: Colors.neutralBorder, borderRadius: Radius.button, backgroundColor: Colors.neutralBg },
+  clientPanel: { padding: 12, borderWidth: 1, borderColor: Colors.neutralBorder, borderRadius: Radius.button, backgroundColor: Colors.neutralBg, marginBottom: 8 },
   clientName: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textDark },
   clientMeta: { fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.text, marginTop: 4 },
-  groupTitle: { fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.text, marginTop: 4, marginBottom: 2 },
-  selectedGroup: { marginBottom: 8 },
-  selectedExtra: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
-  emptyExtras: { paddingVertical: 8, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.disabledText },
-  customCatering: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
+  clientEventRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
+  clientEventInfo: { flex: 1 },
+  clientEventName: { fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.textDark },
+  clientEventDate: { fontFamily: 'Inter-Regular', fontSize: 12, color: Colors.text },
+  groupTitle: { backgroundColor: '#eef5ff', borderLeftWidth: 3, borderLeftColor: Colors.primary, paddingHorizontal: 10, paddingVertical: 7, fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textDark, marginBottom: 2 },
+  selectedGroup: { marginBottom: 12 },
+  selectedExtra: { minHeight: 40, marginLeft: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.neutralBorder },
+  emptyExtras: { marginLeft: 10, paddingVertical: 8, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.disabledText },
   extraOption: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },  extraCheckbox: { flex: 1 },
   variableDescription: { flex: 1 },
   extraName: { flex: 1, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textDark },
