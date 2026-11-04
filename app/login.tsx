@@ -21,13 +21,14 @@ import { KeyboardScrollProvider } from '@/components/ui/KeyboardScrollContext';
 export default function LoginScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollViewInstance>(null);
-  const { usuario, agendas, login, loading, error, requiresOnboarding } = useAuth();
+  const { usuario, agendas, login, loading, error, requiresOnboarding, requiresPasswordChange } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState(false);
 
   if (usuario) {
+    if (requiresPasswordChange) return <Redirect href="/cambiar-contrasena" />;
     if (requiresOnboarding) return <Redirect href="/complete-profile" />;
     return (
       <Redirect
@@ -42,6 +43,8 @@ export default function LoginScreen() {
     const result = await login(username, password);
     if (result === 'onboarding') {
       router.replace('/complete-profile');
+    } else if (result === 'password-change') {
+      router.replace('/cambiar-contrasena');
     } else if (result === 'single') {
       router.replace('/(tabs)/calendario');
     } else if (result === 'multiple') {

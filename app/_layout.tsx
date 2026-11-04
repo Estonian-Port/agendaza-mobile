@@ -104,6 +104,7 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="seleccionar-agenda" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="complete-profile" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="cambiar-contrasena" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="dark" />
@@ -112,15 +113,19 @@ export default function RootLayout() {
 }
 
 function AuthNavigationGuard() {
-  const { requiresOnboarding } = useAuth();
+  const { requiresOnboarding, requiresPasswordChange } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
+    if (requiresPasswordChange && pathname !== '/cambiar-contrasena') {
+      router.replace('/cambiar-contrasena');
+      return;
+    }
     if (requiresOnboarding && pathname !== '/complete-profile') {
       router.replace('/complete-profile');
     }
-  }, [pathname, requiresOnboarding, router]);
+  }, [pathname, requiresOnboarding, requiresPasswordChange, router]);
 
   return null;
 }

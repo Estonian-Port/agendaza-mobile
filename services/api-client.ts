@@ -34,6 +34,7 @@ declare module 'axios' {
 
 type UnauthorizedHandler = () => void;
 type OnboardingRequiredHandler = () => void;
+type PasswordChangeRequiredHandler = () => void;
 
 // ---------------------------------------------------------------------------
 // Almacenamiento del token
@@ -123,6 +124,7 @@ export async function clearToken(): Promise<void> {
 
 let onUnauthorized: UnauthorizedHandler | null = null;
 let onOnboardingRequired: OnboardingRequiredHandler | null = null;
+let onPasswordChangeRequired: PasswordChangeRequiredHandler | null = null;
 
 /** Registrar desde el AuthContext para redirigir al login cuando el backend responde 401. */
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
@@ -133,6 +135,10 @@ export function setOnboardingRequiredHandler(handler: OnboardingRequiredHandler 
   onOnboardingRequired = handler;
 }
 
+export function setPasswordChangeRequiredHandler(handler: PasswordChangeRequiredHandler | null): void {
+  onPasswordChangeRequired = handler;
+}
+
 export function isOnboardingRequiredError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const response = 'response' in error ? error.response : undefined;
@@ -140,6 +146,15 @@ export function isOnboardingRequiredError(error: unknown): boolean {
   const status = 'status' in response ? response.status : undefined;
   const data = 'data' in response ? response.data : undefined;
   return status === 403 && !!data && typeof data === 'object' && 'code' in data && data.code === 'ONBOARDING_REQUIRED';
+}
+
+export function isPasswordChangeRequiredError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const response = 'response' in error ? error.response : undefined;
+  if (!response || typeof response !== 'object') return false;
+  const status = 'status' in response ? response.status : undefined;
+  const data = 'data' in response ? response.data : undefined;
+  return status === 403 && !!data && typeof data === 'object' && 'code' in data && data.code === 'PASSWORD_CHANGE_REQUIRED';
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +213,9 @@ api.interceptors.response.use(
     const config = error?.config as InternalAxiosRequestConfig | undefined;
     const status = error?.response?.status;
     const code = error?.response?.data?.code;
+    if (status === 403 && code === 'PASSWORD_CHANGE_REQUIRED') {
+      onPasswordChangeRequired?.();
+    }
     if (config && isSameOrigin(config.url) && !isPublicRequest(config) && !isAuthEndpoint(config)) {
       if (status === 401 && code === 'TOKEN_EXPIRED' && !config._retry) {
         config._retry = true;
