@@ -1,4 +1,4 @@
-import api, { apiGet, saveToken, clearToken, getToken, isOnboardingRequiredError } from './api-client';
+import api, { apiGet, saveTokens, clearToken, getToken, getRefreshToken, isOnboardingRequiredError } from './api-client';
 import { AuthSession, Cliente, Usuario } from '@/types/domain';
 import axios from 'axios';
 
@@ -64,9 +64,10 @@ export const authService = {
       const response = await api.post('/login', { username, password });
       const authorization = response.headers.authorization as string | undefined;
       token = authorization?.replace(/^Bearer\s+/i, '').trim();
-      if (!token) throw new Error('El backend no retornó un token de autenticación.');
+      const refreshToken = response.headers['x-refresh-token'] as string | undefined;
+      if (!token || !refreshToken) throw new Error('El backend no retornó tokens de autenticación válidos.');
 
-      await saveToken(token);
+      await saveTokens(token, refreshToken);
       const usuarioDTO = await apiGet<UsuarioMeDTO>('/v1/usuarios/me');
       if (!usuarioDTO || !Number.isFinite(Number(usuarioDTO.id))) {
         throw new Error('El backend no retornó un usuario válido.');
@@ -98,7 +99,14 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    await clearToken();
+    const refreshToken = await getRefreshToken();
+    try {
+      if (refreshToken) await api.post('/v1/auth/logout', { refreshToken });
+    } catch {
+      // La sesión local debe cerrarse aunque el backend no esté disponible.
+    } finally {
+      await clearToken();
+    }
   },
 
   async isSessionValid(): Promise<boolean> {

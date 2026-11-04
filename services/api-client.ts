@@ -13,7 +13,8 @@ if (!ENV_API_URL && !__DEV__) {
 }
 const BASE_URL = ENV_API_URL || 'http://localhost:8080';
 
-const TOKEN_KEY = 'agendaza_jwt';
+const ACCESS_TOKEN_KEY = 'agendaza_jwt';
+const REFRESH_TOKEN_KEY = 'agendaza_refresh_token';
 
 // Rutas que no necesitan token (se comparan sin query string).
 const PUBLIC_PATHS = ['/login', '/register'];
@@ -26,6 +27,8 @@ declare module 'axios' {
   interface AxiosRequestConfig {
     /** Si es true, no se envía el Authorization header ni se dispara onUnauthorized. */
     skipAuth?: boolean;
+    _retry?: boolean;
+    _accessToken?: string;
   }
 }
 
@@ -39,26 +42,36 @@ type OnboardingRequiredHandler = () => void;
 // Cache en memoria para no leer SecureStore en cada request.
 let cachedToken: string | null = null;
 let tokenLoaded = false;
+let cachedRefreshToken: string | null = null;
+let refreshTokenLoaded = false;
 
 const hasLocalStorage = () => Platform.OS === 'web' && typeof window !== 'undefined';
 
-export async function saveToken(token: string): Promise<void> {
-  cachedToken = token;
+export async function saveTokens(accessToken: string, refreshToken: string): Promise<void> {
+  cachedToken = accessToken;
   tokenLoaded = true;
+  cachedRefreshToken = refreshToken;
+  refreshTokenLoaded = true;
   if (Platform.OS === 'web') {
-    if (hasLocalStorage()) window.localStorage.setItem(TOKEN_KEY, token);
+    if (hasLocalStorage()) {
+      window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+      window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    }
     return;
   }
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await Promise.all([
+    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
+    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
+  ]);
 }
 
 export async function getToken(): Promise<string | null> {
   if (tokenLoaded) return cachedToken;
   try {
     if (Platform.OS === 'web') {
-      cachedToken = hasLocalStorage() ? window.localStorage.getItem(TOKEN_KEY) : null;
+      cachedToken = hasLocalStorage() ? window.localStorage.getItem(ACCESS_TOKEN_KEY) : null;
     } else {
-      cachedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+      cachedToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
     }
     tokenLoaded = true;
     return cachedToken;
@@ -67,15 +80,38 @@ export async function getToken(): Promise<string | null> {
   }
 }
 
+export async function getRefreshToken(): Promise<string | null> {
+  if (refreshTokenLoaded) return cachedRefreshToken;
+  try {
+    if (Platform.OS === 'web') {
+      cachedRefreshToken = hasLocalStorage() ? window.localStorage.getItem(REFRESH_TOKEN_KEY) : null;
+    } else {
+      cachedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    }
+    refreshTokenLoaded = true;
+    return cachedRefreshToken;
+  } catch {
+    return null;
+  }
+}
+
 export async function clearToken(): Promise<void> {
   cachedToken = null;
   tokenLoaded = true;
+  cachedRefreshToken = null;
+  refreshTokenLoaded = true;
   try {
     if (Platform.OS === 'web') {
-      if (hasLocalStorage()) window.localStorage.removeItem(TOKEN_KEY);
+      if (hasLocalStorage()) {
+        window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+        window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+      }
       return;
     }
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await Promise.all([
+      SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
+      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+    ]);
   } catch {
     // ignore
   }
@@ -131,6 +167,11 @@ function isPublicRequest(config: InternalAxiosRequestConfig): boolean {
   return PUBLIC_PATHS.some((p) => path === p || path.endsWith(p));
 }
 
+function isAuthEndpoint(config: InternalAxiosRequestConfig): boolean {
+  const path = getPathname(config.url);
+  return path === '/login' || path.endsWith('/login') || path === '/v1/auth/refresh';
+}
+
 // Evita filtrar el token a otros hosts si alguien pasa una URL absoluta.
 function isSameOrigin(url?: string): boolean {
   if (!url || !/^https?:\/\//i.test(url)) return true;
@@ -144,6 +185,7 @@ function isSameOrigin(url?: string): boolean {
 api.interceptors.request.use(async (config) => {
   if (isPublicRequest(config) || !isSameOrigin(config.url)) return config;
   const token = await getToken();
+  config._accessToken = token ?? undefined;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -154,11 +196,25 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const config = error?.config as InternalAxiosRequestConfig | undefined;
-    const isUnauthorized = error?.response?.status === 401;
-    // Un 401 en /login (credenciales incorrectas) no es una sesión vencida.
-    if (isUnauthorized && config && !isPublicRequest(config)) {
-      await clearToken();
-      onUnauthorized?.();
+    const status = error?.response?.status;
+    const code = error?.response?.data?.code;
+    if (config && isSameOrigin(config.url) && !isPublicRequest(config) && !isAuthEndpoint(config)) {
+      if (status === 401 && code === 'TOKEN_EXPIRED' && !config._retry) {
+        config._retry = true;
+        try {
+          const tokens = await refreshForRequest(config._accessToken);
+          if (getPathname(config.url) === '/v1/auth/logout') {
+            config.data = JSON.stringify({ refreshToken: tokens.refreshToken });
+          }
+          return api.request(config);
+        } catch (refreshError) {
+          return Promise.reject(refreshError);
+        }
+      }
+      if (status === 401 && code === 'UNAUTHENTICATED') {
+        await clearToken();
+        onUnauthorized?.();
+      }
     }
     if (isOnboardingRequiredError(error)) {
       onOnboardingRequired?.();
@@ -166,6 +222,60 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+let refreshInFlight: Promise<AuthTokens> | null = null;
+
+async function performRefresh(): Promise<AuthTokens> {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) {
+    await clearToken();
+    onUnauthorized?.();
+    throw new Error('La sesión terminó. Iniciá sesión nuevamente.');
+  }
+
+  try {
+    const response = await api.post<{ data?: AuthTokens }>('/v1/auth/refresh', { refreshToken }, { skipAuth: true });
+    const tokens = response.data?.data;
+    if (!tokens?.accessToken || !tokens.refreshToken) {
+      throw new Error('El backend no retornó tokens válidos.');
+    }
+    await saveTokens(tokens.accessToken, tokens.refreshToken);
+    return tokens;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      await clearToken();
+      onUnauthorized?.();
+    }
+    throw error;
+  }
+}
+
+function refreshSession(): Promise<AuthTokens> {
+  if (!refreshInFlight) {
+    refreshInFlight = performRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function refreshForRequest(requestToken?: string): Promise<AuthTokens> {
+  if (refreshInFlight) return refreshInFlight;
+  const currentToken = await getToken();
+  if (refreshInFlight) return refreshInFlight;
+  if (requestToken && currentToken && requestToken !== currentToken) {
+    return {
+      accessToken: currentToken,
+      refreshToken: (await getRefreshToken()) ?? '',
+    };
+  }
+  return refreshSession();
+}
 
 // ---------------------------------------------------------------------------
 // Unwrap de CustomResponse

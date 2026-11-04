@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { useRouter } from 'expo-router';
 import { authService } from '@/services/auth.service';
 import { empresaService, setEmpresaActivaId } from '@/services/empresa.service';
-import { getToken, isOnboardingRequiredError, setOnboardingRequiredHandler } from '@/services/api-client';
+import { getToken, isOnboardingRequiredError, setOnboardingRequiredHandler, setUnauthorizedHandler } from '@/services/api-client';
 import { Empresa, Rol, Usuario } from '@/types/domain';
 
 interface AuthContextValue {
@@ -41,7 +41,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresOnboarding(true);
       router.replace('/complete-profile');
     });
-    return () => setOnboardingRequiredHandler(null);
+    setUnauthorizedHandler(() => {
+      setEmpresaActivaId(null);
+      setUsuario(null);
+      setToken(null);
+      setAgendas([]);
+      setRequiresOnboarding(false);
+      router.replace('/login');
+    });
+    return () => {
+      setOnboardingRequiredHandler(null);
+      setUnauthorizedHandler(null);
+    };
   }, [router]);
 
   const login = useCallback(async (username: string, password: string) => {
