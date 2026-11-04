@@ -10,10 +10,11 @@ import { useAuth } from '@/context/AuthContext';
 export default function SeleccionarAgendaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { usuario, agendas, selectAgenda, logout } = useAuth();
+  const { usuario, agendas, selectAgenda, logout, requiresOnboarding } = useAuth();
   const [selecting, setSelecting] = useState(false);
 
   if (!usuario) return <Redirect href="/login" />;
+  if (requiresOnboarding) return <Redirect href="/complete-profile" />;
 
   const sortedAgendas = [...agendas].sort((a, b) => a.id - b.id);
 

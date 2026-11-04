@@ -34,7 +34,7 @@ export const unstable_settings = {
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const { usuario, agendas, logout } = useAuth();
+  const { usuario, agendas, logout, requiresOnboarding } = useAuth();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuView, setMenuView] = useState<'menu' | 'profile' | 'company'>('menu');
@@ -42,6 +42,7 @@ export default function TabLayout() {
   if (!usuario) {
     return <Redirect href="/login" />;
   }
+  if (requiresOnboarding) return <Redirect href="/complete-profile" />;
 
   const tabs = ROLE_TABS[usuario.rol];
   const currentTab = pathname.split('/').pop();

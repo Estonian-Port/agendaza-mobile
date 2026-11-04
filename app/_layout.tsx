@@ -1,12 +1,15 @@
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { SplashScreen, Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { SplashScreen } from 'expo-router';
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { LocaleConfig } from 'react-native-calendars';
+import { Button } from '@/components/ui/Button';
+import { Colors, Spacing, Typography } from '@/constants/theme';
+import { getStoreUrl, isNativeUpdateRequired } from '@/services/version.service';
 
 LocaleConfig.locales.es = {
   monthNames: [
@@ -29,6 +32,8 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   useFrameworkReady();
+  const [checkingVersion, setCheckingVersion] = useState(Platform.OS !== 'web');
+  const [updateRequired, setUpdateRequired] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -43,19 +48,107 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    let active = true;
+    isNativeUpdateRequired()
+      .then((required) => {
+        if (active) setUpdateRequired(required);
+      })
+      .catch(() => {
+        if (active) setUpdateRequired(false);
+      })
+      .finally(() => {
+        if (active) setCheckingVersion(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (!fontsLoaded && !fontError) {
     return null;
   }
 
+  if (checkingVersion) {
+    return (
+      <View style={styles.checking}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (updateRequired) {
+    return (
+      <View style={styles.updateRequired}>
+        <Text style={styles.updateTitle}>Actualización necesaria</Text>
+        <Text style={styles.updateMessage}>
+          Instalá la última versión de Agendaza para continuar.
+        </Text>
+        <Button
+          label="Actualizar ahora"
+          onPress={() => Linking.openURL(getStoreUrl())}
+          fullWidth
+        />
+      </View>
+    );
+  }
+
   return (
     <AuthProvider>
+      <AuthNavigationGuard />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="seleccionar-agenda" options={{ headerShown: false, animation: 'fade' }} />
+        <Stack.Screen name="complete-profile" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="dark" />
     </AuthProvider>
   );
 }
+
+function AuthNavigationGuard() {
+  const { requiresOnboarding } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (requiresOnboarding && pathname !== '/complete-profile') {
+      router.replace('/complete-profile');
+    }
+  }, [pathname, requiresOnboarding, router]);
+
+  return null;
+}
+
+const styles = StyleSheet.create({
+  checking: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
+  updateRequired: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+    backgroundColor: Colors.white,
+  },
+  updateTitle: {
+    ...Typography.title,
+    color: Colors.textDark,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  updateMessage: {
+    ...Typography.body,
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+});

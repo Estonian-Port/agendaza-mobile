@@ -21,13 +21,14 @@ import { KeyboardScrollProvider } from '@/components/ui/KeyboardScrollContext';
 export default function LoginScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollViewInstance>(null);
-  const { usuario, agendas, login, loading, error } = useAuth();
+  const { usuario, agendas, login, loading, error, requiresOnboarding } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState(false);
 
   if (usuario) {
+    if (requiresOnboarding) return <Redirect href="/complete-profile" />;
     return (
       <Redirect
         href={agendas.length > 1 && !usuario.empresaId ? '/seleccionar-agenda' : '/(tabs)/calendario'}
@@ -39,7 +40,9 @@ export default function LoginScreen() {
     setTouched(true);
     if (!username || !password) return;
     const result = await login(username, password);
-    if (result === 'single') {
+    if (result === 'onboarding') {
+      router.replace('/complete-profile');
+    } else if (result === 'single') {
       router.replace('/(tabs)/calendario');
     } else if (result === 'multiple') {
       router.replace('/seleccionar-agenda');

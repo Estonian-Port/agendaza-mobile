@@ -30,6 +30,7 @@ declare module 'axios' {
 }
 
 type UnauthorizedHandler = () => void;
+type OnboardingRequiredHandler = () => void;
 
 // ---------------------------------------------------------------------------
 // Almacenamiento del token
@@ -85,10 +86,24 @@ export async function clearToken(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 let onUnauthorized: UnauthorizedHandler | null = null;
+let onOnboardingRequired: OnboardingRequiredHandler | null = null;
 
 /** Registrar desde el AuthContext para redirigir al login cuando el backend responde 401. */
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
   onUnauthorized = handler;
+}
+
+export function setOnboardingRequiredHandler(handler: OnboardingRequiredHandler | null): void {
+  onOnboardingRequired = handler;
+}
+
+export function isOnboardingRequiredError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const response = 'response' in error ? error.response : undefined;
+  if (!response || typeof response !== 'object') return false;
+  const status = 'status' in response ? response.status : undefined;
+  const data = 'data' in response ? response.data : undefined;
+  return status === 403 && !!data && typeof data === 'object' && 'code' in data && data.code === 'ONBOARDING_REQUIRED';
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +159,9 @@ api.interceptors.response.use(
     if (isUnauthorized && config && !isPublicRequest(config)) {
       await clearToken();
       onUnauthorized?.();
+    }
+    if (isOnboardingRequiredError(error)) {
+      onOnboardingRequired?.();
     }
     return Promise.reject(error);
   },

@@ -1,6 +1,8 @@
-import api, { apiGet, saveToken, clearToken, getToken } from './api-client';
+import api, { apiGet, saveToken, clearToken, getToken, isOnboardingRequiredError } from './api-client';
 import { AuthSession, Cliente, Usuario } from '@/types/domain';
 import axios from 'axios';
+
+const CARGOS_BASE = '/v1/cargos';
 
 interface UsuarioMeDTO {
   id: number;
@@ -83,7 +85,7 @@ export const authService = {
       };
       return { token, usuario };
     } catch (error) {
-      await clearToken();
+      if (!isOnboardingRequiredError(error)) await clearToken();
       const message = getLoginErrorMessage(error);
       if (message) throw new Error(message);
       throw error;
@@ -91,7 +93,7 @@ export const authService = {
   },
 
   async getRolByEmpresaAndUsuario(usuarioId: number, empresaId: number): Promise<Usuario['rol']> {
-    const cargo = await apiGet<unknown>(`/v1/cargos/${usuarioId}/empresa/${empresaId}`);
+    const cargo = await apiGet<unknown>(`${CARGOS_BASE}/${usuarioId}/empresa/${empresaId}`);
     return mapRol(cargo);
   },
 

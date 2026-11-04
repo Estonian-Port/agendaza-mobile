@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { useRouter } from 'expo-router';
 import { authService } from '@/services/auth.service';
 import { empresaService, setEmpresaActivaId } from '@/services/empresa.service';
+import { getToken, isOnboardingRequiredError, setOnboardingRequiredHandler } from '@/services/api-client';
 import { Empresa, Rol, Usuario } from '@/types/domain';
 
 interface AuthContextValue {
@@ -11,10 +13,12 @@ interface AuthContextValue {
   financeRevision: number;
   loading: boolean;
   error: string | null;
+  requiresOnboarding: boolean;
   notifyAgendaChanged: () => void;
   notifyFinanceChanged: () => void;
-  login: (username: string, password: string) => Promise<'single' | 'multiple' | false>;
+  login: (username: string, password: string) => Promise<'single' | 'multiple' | 'onboarding' | false>;
   selectAgenda: (agenda: Empresa) => Promise<void>;
+  completeOnboarding: (updatedUsuario: Partial<Usuario>, usuarioId: number) => Promise<'single' | 'multiple'>;
   logout: () => Promise<void>;
   canAccess: (roles: Rol[]) => boolean;
 }
@@ -22,6 +26,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [agendas, setAgendas] = useState<Empresa[]>([]);
@@ -29,12 +34,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [financeRevision, setFinanceRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requiresOnboarding, setRequiresOnboarding] = useState(false);
+
+  useEffect(() => {
+    setOnboardingRequiredHandler(() => {
+      setRequiresOnboarding(true);
+      router.replace('/complete-profile');
+    });
+    return () => setOnboardingRequiredHandler(null);
+  }, [router]);
 
   const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     setError(null);
     try {
       const session = await authService.login(username, password);
+      setToken(session.token);
+      setUsuario(session.usuario);
       const assigned = await empresaService.getAllByUsuarioId(session.usuario.id);
       if (assigned.length === 0) {
         throw new Error('El usuario no tiene agendas asignadas.');
@@ -52,6 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUsuario({ ...session.usuario, rol });
       return 'multiple';
     } catch (e) {
+      if (isOnboardingRequiredError(e)) {
+        const preservedToken = await getToken();
+        if (preservedToken) setToken(preservedToken);
+        setRequiresOnboarding(true);
+        return 'onboarding';
+      }
       await authService.logout();
       setUsuario(null);
       setToken(null);
@@ -83,7 +105,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(null);
     setToken(null);
     setAgendas([]);
+    setRequiresOnboarding(false);
   }, []);
+
+  const completeOnboarding = useCallback(async (updatedUsuario: Partial<Usuario>, usuarioId: number) => {
+    const assigned = await empresaService.getAllByUsuarioId(usuarioId);
+    if (assigned.length === 0) {
+      throw new Error('El usuario no tiene agendas asignadas.');
+    }
+
+    const existingUsuario = usuario?.id === usuarioId ? usuario : null;
+    let updatedSessionUser: Usuario = {
+      id: usuarioId,
+      username: updatedUsuario.username ?? existingUsuario?.username,
+      email: updatedUsuario.email ?? existingUsuario?.email,
+      nombre: updatedUsuario.nombre ?? existingUsuario?.nombre ?? '',
+      apellido: updatedUsuario.apellido ?? existingUsuario?.apellido ?? '',
+      celular: updatedUsuario.celular ?? existingUsuario?.celular,
+      rol: existingUsuario?.rol ?? 'EMPLEADO',
+      empresaId: 0,
+    };
+
+    if (assigned.length === 1) {
+      const agenda = assigned[0];
+      const rol = await authService.getRolByEmpresaAndUsuario(usuarioId, agenda.id);
+      setEmpresaActivaId(agenda.id);
+      updatedSessionUser = {
+        ...updatedSessionUser,
+        rol,
+        empresaId: agenda.id,
+        empresaNombre: agenda.nombre,
+      };
+    } else {
+      setEmpresaActivaId(null);
+    }
+
+    setAgendas(assigned);
+    setUsuario(updatedSessionUser);
+    setRequiresOnboarding(false);
+    return assigned.length > 1 ? 'multiple' : 'single';
+  }, [usuario]);
 
   const notifyAgendaChanged = useCallback(() => {
     setAgendaRevision((revision) => revision + 1);
@@ -103,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ usuario, token, agendas, agendaRevision, financeRevision, loading, error, notifyAgendaChanged, notifyFinanceChanged, login, selectAgenda, logout, canAccess }}
+      value={{ usuario, token, agendas, agendaRevision, financeRevision, loading, error, requiresOnboarding, notifyAgendaChanged, notifyFinanceChanged, login, selectAgenda, completeOnboarding, logout, canAccess }}
     >
       {children}
     </AuthContext.Provider>

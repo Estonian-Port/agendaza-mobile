@@ -1,5 +1,5 @@
-import React, { ReactNode, useRef } from 'react';
-import { findNodeHandle, Platform, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance, type ViewStyle } from 'react-native';
+import React, { ReactNode, useRef, useState } from 'react';
+import { findNodeHandle, Platform, StyleSheet, Text, TextInput, View, type TextInputInstance, type ViewStyle } from 'react-native';
 import { Colors, Radius, Typography } from '@/constants/theme';
 import { useKeyboardScrollFocus } from '@/components/ui/KeyboardScrollContext';
 
@@ -12,6 +12,9 @@ interface InputProps {
   touched?: boolean;
   secureTextEntry?: boolean;
   keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoCorrect?: boolean;
+  accessibilityLabel?: string;
   prefix?: ReactNode;
   suffix?: ReactNode;
   editable?: boolean;
@@ -31,6 +34,9 @@ export function Input({
   touched,
   secureTextEntry,
   keyboardType = 'default',
+  autoCapitalize,
+  autoCorrect,
+  accessibilityLabel,
   prefix,
   suffix,
   editable = true,
@@ -42,6 +48,7 @@ export function Input({
 }: InputProps) {
   const inputRef = useRef<TextInputInstance>(null);
   const keyboardScrollFocus = useKeyboardScrollFocus();
+  const [focused, setFocused] = useState(false);
   const showError = !!error && touched;
   return (
     <View style={styles.wrapper}>
@@ -50,6 +57,7 @@ export function Input({
         style={[
           styles.container,
           !editable && styles.disabled,
+          focused && styles.focused,
           showError && styles.errorBorder,
           style,
         ]}
@@ -57,17 +65,24 @@ export function Input({
         {prefix && <View style={styles.prefix}>{prefix}</View>}
         <TextInput
           ref={inputRef}
+          accessibilityLabel={accessibilityLabel ?? label}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={Colors.disabledText}
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           editable={editable}
           multiline={multiline}
           numberOfLines={numberOfLines}
-          onBlur={onBlur}
+          onBlur={() => {
+            setFocused(false);
+            onBlur?.();
+          }}
           onFocus={() => {
+            setFocused(true);
             if (Platform.OS === 'web') return;
             const input = inputRef.current;
             const inputHandle = findNodeHandle(input);
@@ -114,6 +129,9 @@ const styles = StyleSheet.create({
   },
   disabled: {
     backgroundColor: Colors.disabledBg,
+  },
+  focused: {
+    borderColor: Colors.primary,
   },
   errorBorder: {
     borderColor: Colors.danger,
