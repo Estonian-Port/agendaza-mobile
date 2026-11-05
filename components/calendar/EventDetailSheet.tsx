@@ -170,19 +170,19 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
 
       const eventDate = localDateKey(event.inicio);
       if (section === 'EXTRAS') {
-        const [fixed, variable] = await Promise.all([
-          extraService.getByTipoEventoAndFecha(tipoEventoId, eventDate, 'EVENTO'),
-          extraService.getByTipoEventoAndFecha(tipoEventoId, eventDate, 'VARIABLE_EVENTO'),
+        const extras = await extraService.getByTipoEventoAndFecha(tipoEventoId, eventDate, [
+          'EVENTO',
+          'VARIABLE_EVENTO',
         ]);
-        setFixedExtras(fixed);
-        setVariableExtras(variable);
+        setFixedExtras(extras.filter((extra) => extra.tipoExtra === 'EVENTO'));
+        setVariableExtras(extras.filter((extra) => extra.tipoExtra === 'VARIABLE_EVENTO'));
       } else {
-        const [types, catering] = await Promise.all([
-          extraService.getByTipoEventoAndFecha(tipoEventoId, eventDate, 'TIPO_CATERING'),
-          extraService.getByTipoEventoAndFecha(tipoEventoId, eventDate, 'VARIABLE_CATERING'),
+        const extras = await extraService.getByTipoEventoAndFecha(tipoEventoId, eventDate, [
+          'TIPO_CATERING',
+          'VARIABLE_CATERING',
         ]);
-        setCateringTypes(types);
-        setCateringExtras(catering);
+        setCateringTypes(extras.filter((extra) => extra.tipoExtra === 'TIPO_CATERING'));
+        setCateringExtras(extras.filter((extra) => extra.tipoExtra === 'VARIABLE_CATERING'));
       }
       setOptionsLoaded(true);
     } catch (cause) {

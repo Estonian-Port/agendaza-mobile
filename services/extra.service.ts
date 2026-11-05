@@ -8,13 +8,13 @@ export const extraService = {
   async getByTipoEventoAndFecha(
     tipoEventoId: number,
     fechaEvento: string,
-    tipoExtra: TipoExtra,
+    tiposExtra: TipoExtra[],
   ): Promise<Extra[]> {
     const empresaId = getEmpresaActivaId();
     const fechaEventoDateTime = fechaEvento.includes('T') ? fechaEvento : `${fechaEvento}T00:00:00`;
     const extras = await apiGet<ExtraPrecioDTO[]>(
       `${BASE}/empresa/${empresaId}/tipo-evento/${tipoEventoId}/precio`,
-      { fechaEvento: fechaEventoDateTime, tipoExtra },
+      { fechaEvento: fechaEventoDateTime, tiposExtra: tiposExtra.join(',') },
     );
 
     return extras.map((extra) => ({

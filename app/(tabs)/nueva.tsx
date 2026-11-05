@@ -420,18 +420,19 @@ export default function NuevaReservaScreen() {
     void formik.setFieldValue('tiposCatering', [], false);
     void formik.setFieldValue('extrasCatering', {}, false);
 
-    Promise.all([
-      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'EVENTO'),
-      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'VARIABLE_EVENTO'),
-      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'TIPO_CATERING'),
-      extraService.getByTipoEventoAndFecha(tipoEventoId, fecha, 'VARIABLE_CATERING'),
-    ])
-      .then(([fijos, variables, catering, extras]) => {
+    extraService
+      .getByTipoEventoAndFecha(tipoEventoId, fecha, [
+        'EVENTO',
+        'VARIABLE_EVENTO',
+        'TIPO_CATERING',
+        'VARIABLE_CATERING',
+      ])
+      .then((extras) => {
         if (!active) return;
-        setExtrasFijos(fijos);
-        setExtrasVariables(variables);
-        setTiposCatering(catering);
-        setExtrasCatering(extras);
+        setExtrasFijos(extras.filter((extra) => extra.tipoExtra === 'EVENTO'));
+        setExtrasVariables(extras.filter((extra) => extra.tipoExtra === 'VARIABLE_EVENTO'));
+        setTiposCatering(extras.filter((extra) => extra.tipoExtra === 'TIPO_CATERING'));
+        setExtrasCatering(extras.filter((extra) => extra.tipoExtra === 'VARIABLE_CATERING'));
       })
       .catch(() => {
         if (active) setExtrasError('No se pudieron cargar los extras para el tipo de evento y la fecha seleccionados.');
