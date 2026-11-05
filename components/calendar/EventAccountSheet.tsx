@@ -125,7 +125,7 @@ export function EventAccountSheet({ open, embedded = false, event, refreshKey, s
       const receipt = await pagoService.descargarComprobante(payment.id);
       const filename = `comprobante-pago-${payment.id}.pdf`;
       if (Platform.OS === 'web') {
-        const url = URL.createObjectURL(receipt);
+        const url = URL.createObjectURL(new Blob([receipt], { type: 'application/pdf' }));
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
@@ -135,7 +135,7 @@ export function EventAccountSheet({ open, embedded = false, event, refreshKey, s
       }
 
       const file = new File(Paths.cache, `${Date.now()}-${filename}`);
-      file.write(new Uint8Array(await receipt.arrayBuffer()));
+      file.write(new Uint8Array(receipt));
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
       } else {

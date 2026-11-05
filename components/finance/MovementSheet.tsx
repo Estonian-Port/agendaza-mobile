@@ -56,7 +56,6 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
   const [pagoBase, setPagoBase] = useState<Pago | null>(null);
   const [monto, setMonto] = useState('');
   const [fechaPago, setFechaPago] = useState(fechaLocal);
-  const [descripcionPago, setDescripcionPago] = useState('');
   const [medioDePago, setMedioDePago] = useState('');
   const [concepto, setConcepto] = useState('');
   const [numeroCuota, setNumeroCuota] = useState('');
@@ -91,7 +90,6 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
     setPagoBase(initialPago);
     setMonto(initialPago ? String(initialPago.monto) : initialGasto ? String(initialGasto.monto) : '');
     setFechaPago(initialPago?.fecha?.slice(0, 16) || fechaLocal());
-    setDescripcionPago(initialPago?.descripcion || '');
     setMedioDePago(initialPago?.medioDePago || initialPago?.medioPago || initialGasto?.medioDePago || '');
     setConcepto(initialPago?.concepto || '');
     setNumeroCuota(initialPago?.numeroCuota ?? '');
@@ -130,7 +128,6 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
           setPagoBase(basePago);
           setMonto(basePago.monto > 0 ? String(basePago.monto) : '');
           setFechaPago(basePago.fecha?.slice(0, 16) || fechaLocal());
-          setDescripcionPago(basePago.descripcion || '');
           setMedioDePago(basePago.medioDePago || basePago.medioPago || medios[0] || '');
           setConcepto(basePago.concepto || conceptosDisponibles[0] || '');
           setNumeroCuota(basePago.numeroCuota || '');
@@ -159,7 +156,6 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
         setPagoBase(basePago);
         setMonto(basePago.monto > 0 ? String(basePago.monto) : '');
         setFechaPago(basePago.fecha?.slice(0, 16) || fechaLocal());
-        setDescripcionPago(basePago.descripcion || '');
         setMedioDePago(basePago.medioDePago || basePago.medioPago || mediosPago[0] || '');
         setConcepto(basePago.concepto || conceptos[0] || '');
         setNumeroCuota(basePago.numeroCuota || '');
@@ -243,7 +239,6 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
           eventoId: evento?.id ?? pagoBase.eventoId,
           fecha: fechaPago,
           monto: montoNumerico,
-          descripcion: descripcionPago.trim() || undefined,
           medioDePago,
           concepto,
           numeroCuota: concepto === 'CUOTA' ? numeroCuota.trim() : undefined,
@@ -397,7 +392,6 @@ export function MovementSheet({ open, initialType, initialEvent = null, initialP
             (evento || isEditing) && pagoBase ? (
               <View style={styles.formFields}>
                 <Input label="Fecha y hora" value={fechaPago} onChangeText={setFechaPago} placeholder="AAAA-MM-DDTHH:mm" />
-                <Input label="Descripción" value={descripcionPago} onChangeText={setDescripcionPago} placeholder="Detalle del pago" />
                 <Input label="Monto" value={monto} onChangeText={setMonto} placeholder="0" keyboardType="numeric" />
                 <Select label="Medio de pago" value={medioDePago} options={mediosOptions} onChange={(value) => setMedioDePago(String(value))} placeholder="Seleccionar medio" />
                 <Select label="Concepto" value={concepto} options={conceptosOptions} onChange={(value) => setConcepto(String(value))} placeholder="Seleccionar concepto" />

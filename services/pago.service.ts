@@ -1,7 +1,6 @@
-import { apiGet, apiPost, apiDelete, apiGetBlob } from './api-client';
+import { apiGet, apiPost, apiDelete, apiGetArrayBuffer } from './api-client';
 import { EstadoCuentaEvento, MedioPago, Pago, ResumenPagosMes } from '@/types/domain';
 import { getEmpresaActivaId } from './empresa.service';
-import { eventoService } from './evento.service';
 
 const BASE = '/v1/pagos';
 
@@ -54,8 +53,8 @@ export const pagoService = {
     await apiDelete(`${BASE}/${id}`);
   },
 
-  async descargarComprobante(id: number): Promise<Blob> {
-    return apiGetBlob(`${BASE}/${id}/comprobante`);
+  async descargarComprobante(id: number): Promise<ArrayBuffer> {
+    return apiGetArrayBuffer(`${BASE}/${id}/comprobante`);
   },
 
   async enviarEmailPago(pagoId: number, eventoId: number): Promise<boolean> {

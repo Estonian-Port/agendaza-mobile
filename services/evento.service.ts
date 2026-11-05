@@ -4,7 +4,7 @@ import {
   apiPut,
   apiPatch,
   apiDelete,
-  apiGetBlob,
+  apiGetArrayBuffer,
 } from './api-client';
 import {
   Evento,
@@ -124,7 +124,7 @@ export const eventoService = {
     return r === 'OK';
   },
 
-  async descargarComprobantePdf(eventoId: number): Promise<Blob> {
-    return apiGetBlob(`${BASE}/${eventoId}/comprobante/pdf`);
+  async descargarComprobantePdf(eventoId: number): Promise<ArrayBuffer> {
+    return apiGetArrayBuffer(`${BASE}/${eventoId}/comprobante/pdf`);
   },
 };

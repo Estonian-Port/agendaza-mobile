@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { Asterisk, ArrowLeft, DollarSign, Receipt, Save, UserRound, Utensils } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Asterisk, ArrowLeft, DollarSign, Download, Receipt, Save, UserRound, Utensils } from 'lucide-react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -84,6 +86,7 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
   const [editingSection, setEditingSection] = useState<EditorSection | null>(null);
   const [editingClient, setEditingClient] = useState(false);
   const [clientName, setClientName] = useState('');
@@ -298,6 +301,37 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
       setError(errorText(cause));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const downloadEventReceipt = async () => {
+    if (!event) return;
+    setDownloadingReceipt(true);
+    setError('');
+    try {
+      const receipt = await eventoService.descargarComprobantePdf(event.id);
+      const filename = `comprobante-evento-${event.id}.pdf`;
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([receipt], { type: 'application/pdf' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const file = new File(Paths.cache, `${Date.now()}-${filename}`);
+      file.write(new Uint8Array(receipt));
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+      } else {
+        Alert.alert('Comprobante descargado', file.uri);
+      }
+    } catch (cause) {
+      setError(errorText(cause));
+    } finally {
+      setDownloadingReceipt(false);
     }
   };
 
@@ -597,6 +631,15 @@ export function EventDetailSheet({ open, eventId, accountOpen, showAccountBackBu
           <Input label="Descripción / anotaciones" value={description} onChangeText={setDescription} />
           {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
           <Button label="Guardar cambios" icon={<Save size={17} color={Colors.white} />} onPress={() => void save()} loading={saving} fullWidth style={styles.saveButton} />
+          <Button
+            label="Descargar comprobante"
+            variant="outline"
+            icon={<Download size={17} color={Colors.primary} />}
+            onPress={() => void downloadEventReceipt()}
+            loading={downloadingReceipt}
+            fullWidth
+            style={styles.saveButton}
+          />
 
           <Text style={styles.sectionTitle}>Cliente</Text>
           <View style={styles.clientPanel}>

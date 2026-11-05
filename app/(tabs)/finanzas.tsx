@@ -80,7 +80,7 @@ function toMovimiento(pago: Pago): MovimientoFinanciero {
     fecha: pago.fecha,
     monto: pago.monto,
     esIngreso: pago.esIngreso ?? true,
-    titulo: pago.descripcion || pago.eventoNombre || pago.nombreEvento || pago.codigo || conceptLabel(pago),
+    titulo: pago.eventoNombre || pago.nombreEvento || pago.codigo || conceptLabel(pago),
     etiqueta: conceptLabel(pago),
     pagoId: pago.id,
   };
@@ -259,7 +259,7 @@ export default function FinanzasScreen() {
       const filename = `comprobante-pago-${id}.pdf`;
 
       if (Platform.OS === 'web') {
-        const url = URL.createObjectURL(comprobante);
+        const url = URL.createObjectURL(new Blob([comprobante], { type: 'application/pdf' }));
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
@@ -269,7 +269,7 @@ export default function FinanzasScreen() {
       }
 
       const file = new File(Paths.cache, `${Date.now()}-${filename}`);
-      file.write(new Uint8Array(await comprobante.arrayBuffer()));
+        file.write(new Uint8Array(comprobante));
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, {
           mimeType: 'application/pdf',

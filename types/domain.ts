@@ -221,7 +221,6 @@ export interface Pago {
   medioPago?: MedioPago;
   medioDePago?: string;
   concepto: ConceptoPago;
-  descripcion?: string;
   esIngreso?: boolean;
   eventoId?: number;
   eventoNombre?: string;
@@ -261,7 +260,6 @@ export interface PagoJSON {
   monto: number;
   medioPago: MedioPago;
   concepto: ConceptoPago;
-  descripcion?: string;
   esIngreso: boolean;
   eventoId?: number;
   eventoNombre?: string;
