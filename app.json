@@ -18,8 +18,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
-        "backgroundColor": "white"
+        "backgroundColor": "#FFFFFF"
       }
     },
     "web": {
@@ -37,7 +36,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "white"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       "expo-status-bar",
