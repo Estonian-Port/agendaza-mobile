@@ -14,11 +14,11 @@
     "typecheck": "tsc --noEmit",
     "doctor": "expo-doctor",
     "deps:fix": "expo install --fix",
-    "android:prebuild": "expo prebuild --platform android",
-    "android:prebuild:clean": "expo prebuild --platform android --clean",
+    "android:prebuild": "NODE_ENV=production expo prebuild --platform android",
+    "android:prebuild:clean": "NODE_ENV=production expo prebuild --platform android --clean",
     "android:aab": "cd android && NODE_ENV=production ./gradlew bundleRelease",
-    "ios:prebuild": "expo prebuild --platform ios",
-    "ios:prebuild:clean": "expo prebuild --platform ios --clean",
+    "ios:prebuild": "NODE_ENV=production expo prebuild --platform ios",
+    "ios:prebuild:clean": "NODE_ENV=production expo prebuild --platform ios --clean",
     "ios:pod-install": "cd ios && pod install"
   },
   "dependencies": {
