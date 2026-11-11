@@ -17,8 +17,9 @@
     "android:prebuild": "expo prebuild --platform android",
     "android:prebuild:clean": "expo prebuild --platform android --clean",
     "android:aab": "cd android && NODE_ENV=production ./gradlew bundleRelease",
-    "android:apk": "cd android && NODE_ENV=production ./gradlew assembleRelease",
-    "android:clean": "cd android && ./gradlew clean"
+    "ios:prebuild": "expo prebuild --platform ios",
+    "ios:prebuild:clean": "expo prebuild --platform ios --clean",
+    "ios:pod-install": "cd ios && pod install"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
