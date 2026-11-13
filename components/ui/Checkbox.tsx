@@ -11,6 +11,7 @@ interface CheckboxProps {
   rightText?: string;
   priceValue?: number;
   priceMultiplier?: number;
+  priceInputAccessoryViewID?: string;
   onPriceChange?: (price: number) => void;
 }
 
@@ -25,10 +26,12 @@ function formatCurrency(value: number) {
 export function PriceEditor({
   value,
   multiplier = 1,
+  inputAccessoryViewID,
   onChange,
 }: {
   value: number;
   multiplier?: number;
+  inputAccessoryViewID?: string;
   onChange: (price: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -54,6 +57,7 @@ export function PriceEditor({
           accessibilityLabel="Editar precio"
           autoFocus
           keyboardType="decimal-pad"
+          inputAccessoryViewID={inputAccessoryViewID}
           value={draft}
           onChangeText={updatePrice}
           onBlur={() => setEditing(false)}
@@ -95,6 +99,7 @@ export function Checkbox({
   rightText,
   priceValue,
   priceMultiplier,
+  priceInputAccessoryViewID,
   onPriceChange,
 }: CheckboxProps) {
   return (
@@ -109,7 +114,7 @@ export function Checkbox({
         </View>
       </Pressable>
       {priceValue !== undefined && onPriceChange && (
-        <PriceEditor value={priceValue} multiplier={priceMultiplier} onChange={onPriceChange} />
+        <PriceEditor value={priceValue} multiplier={priceMultiplier} inputAccessoryViewID={priceInputAccessoryViewID} onChange={onPriceChange} />
       )}
     </View>
   );

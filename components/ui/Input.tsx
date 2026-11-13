@@ -21,6 +21,7 @@ interface InputProps {
   multiline?: boolean;
   numberOfLines?: number;
   style?: ViewStyle;
+  inputAccessoryViewID?: string;
   onBlur?: () => void;
   onFocus?: (inputHandle: number) => void;
 }
@@ -43,6 +44,7 @@ export function Input({
   multiline = false,
   numberOfLines = 1,
   style,
+  inputAccessoryViewID,
   onBlur,
   onFocus,
 }: InputProps) {
@@ -75,6 +77,7 @@ export function Input({
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
           editable={editable}
+          inputAccessoryViewID={inputAccessoryViewID}
           multiline={multiline}
           numberOfLines={numberOfLines}
           onBlur={() => {

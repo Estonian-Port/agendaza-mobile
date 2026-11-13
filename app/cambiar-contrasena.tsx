@@ -74,7 +74,9 @@ export default function CambiarContrasenaScreen() {
     setRequestError('');
     try {
       const destination = await completePasswordChange(password);
-      if (destination === 'single') router.replace('/(tabs)/calendario');
+      if (destination === 'onboarding') router.replace('/complete-profile');
+      else if (destination === 'email-verification') router.replace('/verificar-email');
+      else if (destination === 'single') router.replace('/(tabs)/calendario');
       else if (destination === 'multiple') router.replace('/seleccionar-agenda');
       else router.replace('/(tabs)/calendario');
     } catch (error) {

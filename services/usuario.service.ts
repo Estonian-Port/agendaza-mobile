@@ -5,6 +5,7 @@ const BASE = '/v1/usuarios';
 export interface UsuarioEstado {
   onboardingRequired: boolean;
   passwordChangeRequired: boolean;
+  emailVerificationRequired: boolean;
 }
 
 interface ClienteUpdate {
@@ -19,6 +20,14 @@ interface ClienteUpdate {
 export const usuarioService = {
   async getEstado(): Promise<UsuarioEstado> {
     return apiGet<UsuarioEstado>(`${BASE}/me/estado`);
+  },
+
+  async requestEmailVerification(): Promise<void> {
+    await apiPost<void>(`${BASE}/verificacion-email`);
+  },
+
+  async confirmEmailVerification(codigo: string): Promise<void> {
+    await apiPost<void>(`${BASE}/verificacion-email/confirmar`, { codigo });
   },
 
   async changePassword(password: string): Promise<void> {

@@ -4,9 +4,9 @@ import { useAuth } from '@/context/AuthContext';
 export default function IndexScreen() {
   const { usuario, agendas, requiresOnboarding, requiresPasswordChange } = useAuth();
 
+  if (requiresOnboarding) return <Redirect href="/complete-profile" />;
   if (requiresPasswordChange) return <Redirect href="/cambiar-contrasena" />;
   if (!usuario) return <Redirect href="/login" />;
-  if (requiresOnboarding) return <Redirect href="/complete-profile" />;
 
   return (
     <Redirect

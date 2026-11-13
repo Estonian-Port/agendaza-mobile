@@ -1,5 +1,5 @@
 import api, { apiGet, saveTokens, clearToken, getToken, getRefreshToken, isOnboardingRequiredError, isPasswordChangeRequiredError } from './api-client';
-import { AuthSession, Cliente, Usuario } from '@/types/domain';
+import { Cliente, Usuario } from '@/types/domain';
 import axios from 'axios';
 
 const CARGOS_BASE = '/v1/cargos';
@@ -77,7 +77,7 @@ function getLoginErrorMessage(error: unknown): string | null {
 }
 
 export const authService = {
-  async login(username: string, password: string): Promise<AuthSession> {
+  async login(username: string, password: string): Promise<{ token: string }> {
     let token: string | undefined;
     try {
       const response = await api.post('/login', { username, password });
@@ -87,8 +87,7 @@ export const authService = {
       if (!token || !refreshToken) throw new Error('El backend no retornó tokens de autenticación válidos.');
 
       await saveTokens(token, refreshToken);
-      const usuario = await fetchCurrentUser(username);
-      return { token, usuario };
+      return { token };
     } catch (error) {
       if (!isOnboardingRequiredError(error) && !isPasswordChangeRequiredError(error)) await clearToken();
       if (isOnboardingRequiredError(error) || isPasswordChangeRequiredError(error)) throw error;

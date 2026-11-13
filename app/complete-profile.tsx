@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Calendar, type DateData } from 'react-native-calendars';
 import Markdown from 'react-native-markdown-display';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/Button';
@@ -58,7 +58,7 @@ export default function CompleteProfileScreen() {
   const scrollRef = useRef<ScrollViewInstance>(null);
   const usernameCheckId = useRef(0);
   const savingRef = useRef(false);
-  const { usuario, token, requiresOnboarding, completeOnboarding } = useAuth();
+  const { usuario, token, agendas, requiresOnboarding, requiresEmailVerification, requiresPasswordChange, completeOnboarding } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const currentYear = Number(today.slice(0, 4));
 
@@ -90,8 +90,7 @@ export default function CompleteProfileScreen() {
 
   useEffect(() => {
     if (!token) router.replace('/login');
-    else if (!requiresOnboarding) router.replace('/');
-  }, [requiresOnboarding, router, token]);
+  }, [router, token]);
 
   const loadTerms = useCallback(async () => {
     try {
@@ -219,14 +218,13 @@ export default function CompleteProfileScreen() {
         aceptoTerminos: true,
         versionTerminos: terms.version,
       });
-      const destination = await completeOnboarding({
+      await completeOnboarding({
         nombre: values.nombre.trim(),
         apellido: values.apellido.trim(),
         celular: values.celular.trim(),
         username: values.username.trim() || usuario?.username,
         email: values.email.trim() || usuario?.email,
       }, usuarioId);
-      router.replace(destination === 'multiple' ? '/seleccionar-agenda' : '/');
     } catch (error) {
       setSaveError(errorMessage(error, 'No se pudo guardar el perfil. Intentá nuevamente.'));
     } finally {
@@ -236,7 +234,15 @@ export default function CompleteProfileScreen() {
   };
 
   if (!token) return null;
-  if (!requiresOnboarding) return null;
+  if (!requiresOnboarding) {
+    if (requiresEmailVerification) return <Redirect href="/verificar-email" />;
+    if (requiresPasswordChange) return <Redirect href="/cambiar-contrasena" />;
+    return (
+      <Redirect
+        href={agendas.length > 1 && !usuario?.empresaId ? '/seleccionar-agenda' : '/(tabs)/calendario'}
+      />
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>

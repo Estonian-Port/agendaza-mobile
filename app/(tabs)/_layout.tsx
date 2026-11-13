@@ -39,11 +39,11 @@ export default function TabLayout() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuView, setMenuView] = useState<'menu' | 'profile' | 'company'>('menu');
 
+  if (requiresOnboarding) return <Redirect href="/complete-profile" />;
+  if (requiresPasswordChange) return <Redirect href="/cambiar-contrasena" />;
   if (!usuario) {
     return <Redirect href="/login" />;
   }
-  if (requiresPasswordChange) return <Redirect href="/cambiar-contrasena" />;
-  if (requiresOnboarding) return <Redirect href="/complete-profile" />;
 
   const tabs = ROLE_TABS[usuario.rol];
   const currentTab = pathname.split('/').pop();

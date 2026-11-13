@@ -98,34 +98,57 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+      <AppNavigator />
+    </AuthProvider>
+  );
+}
+
+function AppNavigator() {
+  const { authReady } = useAuth();
+
+  if (!authReady) {
+    return (
+      <View style={styles.checking}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <>
       <AuthNavigationGuard />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="seleccionar-agenda" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="complete-profile" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="verificar-email" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="cambiar-contrasena" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="dark" />
-    </AuthProvider>
+    </>
   );
 }
 
 function AuthNavigationGuard() {
-  const { requiresOnboarding, requiresPasswordChange } = useAuth();
+  const { requiresOnboarding, requiresEmailVerification, requiresPasswordChange } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    if (requiresPasswordChange && pathname !== '/cambiar-contrasena') {
-      router.replace('/cambiar-contrasena');
-      return;
-    }
     if (requiresOnboarding && pathname !== '/complete-profile') {
       router.replace('/complete-profile');
+      return;
     }
-  }, [pathname, requiresOnboarding, requiresPasswordChange, router]);
+    if (requiresEmailVerification && pathname !== '/verificar-email' && pathname !== '/login') {
+      router.replace('/verificar-email');
+      return;
+    }
+    if (requiresPasswordChange && pathname !== '/cambiar-contrasena') {
+      router.replace('/cambiar-contrasena');
+    }
+  }, [pathname, requiresOnboarding, requiresEmailVerification, requiresPasswordChange, router]);
 
   return null;
 }

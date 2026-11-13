@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  InputAccessoryView,
   KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Pressable,
   Platform,
@@ -51,6 +53,7 @@ import {
 } from '@/types/domain';
 
 const STEPS = ['Tipo', 'Fecha', 'Cotización', 'Catering', 'Contacto'];
+const PRICE_INPUT_ACCESSORY_ID = 'reservation-price-input-accessory';
 const DURATIONS: { label: string; value: Duracion }[] = [
   { label: 'Corto', value: 'CORTO' },
   { label: 'Medio', value: 'MEDIO' },
@@ -206,6 +209,7 @@ export default function NuevaReservaScreen() {
   const [clientSearch, setClientSearch] = useState<'idle' | 'loading' | 'found' | 'not-found' | 'error'>('idle');
   const [submitError, setSubmitError] = useState('');
   const [savedEvent, setSavedEvent] = useState<EventoHoraDTO | null>(null);
+  const handleConfirmarPrecio = () => Keyboard.dismiss();
 
   const formik = useFormik<ReservationValues>({
     initialValues,
@@ -838,6 +842,7 @@ export default function NuevaReservaScreen() {
                       label={`Base · ${selectedTipo.nombre}`}
                       price={formik.values.precioTipoEvento ?? eventTypePrice ?? selectedTipo.precioBase}
                       onPriceChange={(price) => void formik.setFieldValue('precioTipoEvento', price, false)}
+                      inputAccessoryViewID={PRICE_INPUT_ACCESSORY_ID}
                       prominent
                     />
                   )}
@@ -851,6 +856,7 @@ export default function NuevaReservaScreen() {
                       onChange={() => toggleId('extrasFijos', extra.id)}
                       priceValue={formik.values.preciosExtras[extra.id] ?? extra.precio}
                       priceMultiplier={extra.cantidad}
+                      priceInputAccessoryViewID={PRICE_INPUT_ACCESSORY_ID}
                       onPriceChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
                     />
                   ))}
@@ -866,6 +872,7 @@ export default function NuevaReservaScreen() {
                         <PriceEditor
                           value={formik.values.preciosExtras[extra.id] ?? extra.precio}
                           onChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
+                          inputAccessoryViewID={PRICE_INPUT_ACCESSORY_ID}
                         />
                         <Stepper label="" value={quantity} onChange={(value) => void formik.setFieldValue(`extrasVariables.${extra.id}`, value)} min={0} max={500} />
                       </View>
@@ -878,6 +885,7 @@ export default function NuevaReservaScreen() {
                     onChangeText={(value) => void formik.setFieldValue('extraOtro', value.replace(/[^\d.,]/g, '').replace(',', '.'))}
                     placeholder="0"
                     keyboardType="numeric"
+                    inputAccessoryViewID={PRICE_INPUT_ACCESSORY_ID}
                     prefix={<Text style={styles.currencyPrefix}>$</Text>}
                   />
                   <Input
@@ -910,6 +918,7 @@ export default function NuevaReservaScreen() {
                           checked={formik.values.tiposCatering.includes(extra.id)}
                           onChange={() => toggleId('tiposCatering', extra.id)}
                           priceValue={formik.values.preciosExtras[extra.id] ?? extra.precio}
+                          priceInputAccessoryViewID={PRICE_INPUT_ACCESSORY_ID}
                           onPriceChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
                         />
                       ))}
@@ -923,6 +932,7 @@ export default function NuevaReservaScreen() {
                           <PriceEditor
                             value={formik.values.preciosExtras[extra.id] ?? extra.precio}
                             onChange={(price) => void formik.setFieldValue(`preciosExtras.${extra.id}`, price, false)}
+                            inputAccessoryViewID={PRICE_INPUT_ACCESSORY_ID}
                           />
                           <Stepper
                             label=""
@@ -940,6 +950,7 @@ export default function NuevaReservaScreen() {
                         onChangeText={(value) => void formik.setFieldValue('cateringOtro', value.replace(/[^\d.,]/g, '').replace(',', '.'))}
                         placeholder="0"
                         keyboardType="numeric"
+                        inputAccessoryViewID={PRICE_INPUT_ACCESSORY_ID}
                         prefix={<Text style={styles.currencyPrefix}>$</Text>}
                       />
                       {Number(formik.values.cateringOtro) > 0 && (
@@ -1059,6 +1070,14 @@ export default function NuevaReservaScreen() {
         </KeyboardScrollProvider>
       </ScrollView>
 
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={PRICE_INPUT_ACCESSORY_ID}>
+          <View style={{ backgroundColor: '#f1f1f1', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 4, borderTopWidth: 1, borderColor: '#ddd' }}>
+            <Button label="Listo" size="sm" onPress={handleConfirmarPrecio} />
+          </View>
+        </InputAccessoryView>
+      )}
+
       <Modal visible={datePickerOpen} transparent animationType="slide" onRequestClose={() => setDatePickerOpen(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setDatePickerOpen(false)}>
           <Pressable style={styles.dateSheet} onPress={(event) => event.stopPropagation()}>
@@ -1100,18 +1119,20 @@ function PriceRow({
   label,
   price,
   onPriceChange,
+  inputAccessoryViewID,
   prominent = false,
 }: {
   label: string;
   price: number;
   onPriceChange?: (price: number) => void;
+  inputAccessoryViewID?: string;
   prominent?: boolean;
 }) {
   return (
     <View style={[styles.priceRow, prominent && styles.priceRowProminent]}>
       <Text style={[styles.priceLabel, prominent && styles.priceLabelProminent]}>{label}</Text>
       {onPriceChange ? (
-        <PriceEditor value={price} onChange={onPriceChange} />
+        <PriceEditor value={price} inputAccessoryViewID={inputAccessoryViewID} onChange={onPriceChange} />
       ) : (
         <Text style={[styles.priceValue, prominent && styles.priceValueProminent]}>{formatCurrency(price)}</Text>
       )}

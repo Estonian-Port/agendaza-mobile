@@ -8,7 +8,7 @@ import {
   Image,
   type ScrollViewInstance,
 } from 'react-native';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import Constants from 'expo-constants';
 import { Lock, UserRound, Eye, EyeOff } from 'lucide-react-native';
 import { Card } from '@/components/ui/Card';
@@ -19,17 +19,17 @@ import { Button } from '@/components/ui/Button';
 import { KeyboardScrollProvider } from '@/components/ui/KeyboardScrollContext';
 
 export default function LoginScreen() {
-  const router = useRouter();
   const scrollRef = useRef<ScrollViewInstance>(null);
-  const { usuario, agendas, login, loading, error, requiresOnboarding, requiresPasswordChange } = useAuth();
+  const { usuario, agendas, login, loading, error, requiresOnboarding, requiresEmailVerification, requiresPasswordChange } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState(false);
 
+  if (requiresOnboarding) return <Redirect href="/complete-profile" />;
+  if (requiresEmailVerification) return <Redirect href="/verificar-email" />;
+  if (requiresPasswordChange) return <Redirect href="/cambiar-contrasena" />;
   if (usuario) {
-    if (requiresPasswordChange) return <Redirect href="/cambiar-contrasena" />;
-    if (requiresOnboarding) return <Redirect href="/complete-profile" />;
     return (
       <Redirect
         href={agendas.length > 1 && !usuario.empresaId ? '/seleccionar-agenda' : '/(tabs)/calendario'}
@@ -40,16 +40,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setTouched(true);
     if (!username || !password) return;
-    const result = await login(username, password);
-    if (result === 'onboarding') {
-      router.replace('/complete-profile');
-    } else if (result === 'password-change') {
-      router.replace('/cambiar-contrasena');
-    } else if (result === 'single') {
-      router.replace('/(tabs)/calendario');
-    } else if (result === 'multiple') {
-      router.replace('/seleccionar-agenda');
-    }
+    await login(username, password);
   };
 
   return (
