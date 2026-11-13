@@ -2,7 +2,7 @@
   "expo": {
     "name": "Agendaza",
     "slug": "Agendaza",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "agendaza",
@@ -10,11 +10,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.estonianport.agendaza",
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "package": "com.estonianport.agendaza",
-      "versionCode": 2,
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
