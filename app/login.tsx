@@ -76,6 +76,8 @@ export default function LoginScreen() {
               value={username}
               onChangeText={setUsername}
               placeholder="Ingrese su nombre de usuario"
+              autoCapitalize="none"
+              autoCorrect={false}
               error={!username && touched ? 'El nombre de usuario es requerido' : ''}
               touched={touched}
               prefix={<UserRound size={18} color={Colors.text} />}

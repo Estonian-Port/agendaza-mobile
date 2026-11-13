@@ -1,5 +1,7 @@
 import { apiGet, apiPost, apiPut } from './api-client';
 
+const BASE = '/v1/usuarios';
+
 export interface UsuarioEstado {
   onboardingRequired: boolean;
   passwordChangeRequired: boolean;
@@ -16,14 +18,14 @@ interface ClienteUpdate {
 
 export const usuarioService = {
   async getEstado(): Promise<UsuarioEstado> {
-    return apiGet<UsuarioEstado>('/v1/usuarios/me/estado');
+    return apiGet<UsuarioEstado>(`${BASE}/me/estado`);
   },
 
   async changePassword(password: string): Promise<void> {
-    await apiPut<void>('/v1/usuarios/me/password', { password });
+    await apiPut<void>(`${BASE}/me/password`, { password });
   },
 
   async editCliente(cliente: ClienteUpdate): Promise<void> {
-    await apiPost<void>('/v1/usuarios/clientes', cliente);
+    await apiPost<void>(`${BASE}/clientes`, cliente);
   },
 };

@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { CustomResponse } from '@/types/domain';
 
@@ -7,9 +8,9 @@ import { CustomResponse } from '@/types/domain';
 // Config
 // ---------------------------------------------------------------------------
 
-const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL;
+const ENV_API_URL = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 if (!ENV_API_URL && !__DEV__) {
-  throw new Error('Falta EXPO_PUBLIC_API_URL en el build de producción');
+  throw new Error('Falta API_URL en el build de producción');
 }
 const BASE_URL = ENV_API_URL || 'http://localhost:8080';
 
