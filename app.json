@@ -41,7 +41,9 @@
       ],
       "expo-status-bar",
       "expo-sharing",
-      "expo-asset"
+      "expo-asset",
+      "./plugins/build.js",
+      "./plugins/releaseSigning.js"
     ],
     "experiments": {
       "typedRoutes": true
