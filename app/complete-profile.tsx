@@ -86,6 +86,7 @@ export default function CompleteProfileScreen() {
   });
   const [usernameEnabled, setUsernameEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
+  const [passwordRequired, setPasswordRequired] = useState(true);
   const [touched, setTouched] = useState<Partial<Record<FormField, boolean>>>({});
 
   useEffect(() => {
@@ -115,6 +116,7 @@ export default function CompleteProfileScreen() {
   const emailIsMissing = !currentEmail || currentEmail.toLowerCase().startsWith('sin-email-');
   const celularIsPlaceholder = currentCelular.startsWith('999');
 
+  setPasswordRequired(currentUsername.trim().toLowerCase() === currentEmail.toLowerCase());
   setUsernameEnabled(usernameIsEmail);
   setEmailEnabled(emailIsMissing);
 
@@ -175,19 +177,23 @@ export default function CompleteProfileScreen() {
     fechaNacimiento: !values.fechaNacimiento ? 'La fecha de nacimiento es obligatoria.' : '',
     username: usernameEnabled && values.username.trim().length < 3 ? 'Debe tener al menos 3 caracteres.' : '',
     email: values.email && !isEmail(values.email) ? 'Ingresá un email válido.' : '',
-    password: !values.password
-      ? 'La contraseña es obligatoria.'
-      : values.password.length < 8
-        ? 'Debe tener al menos 8 caracteres.'
-        : !/[A-Z]/.test(values.password) || !/[0-9]/.test(values.password)
-          ? 'Incluí al menos una mayúscula y un número.'
+    password: !passwordRequired
+      ? ''
+      : !values.password
+        ? 'La contraseña es obligatoria.'
+        : values.password.length < 8
+          ? 'Debe tener al menos 8 caracteres.'
+          : !/[A-Z]/.test(values.password) || !/[0-9]/.test(values.password)
+            ? 'Incluí al menos una mayúscula y un número.'
+            : '',
+    confirmPassword: !passwordRequired
+      ? ''
+      : !values.confirmPassword
+        ? 'Confirmá tu contraseña.'
+        : values.password !== values.confirmPassword
+          ? 'Las contraseñas no coinciden.'
           : '',
-    confirmPassword: !values.confirmPassword
-      ? 'Confirmá tu contraseña.'
-      : values.password !== values.confirmPassword
-        ? 'Las contraseñas no coinciden.'
-        : '',
-  }), [values, usernameEnabled]);
+  }), [passwordRequired, values, usernameEnabled]);
 
   const formValid = useMemo(() => {
     const requiredValid = !errors.nombre && !errors.apellido && !errors.celular && !errors.fechaNacimiento
@@ -214,7 +220,7 @@ export default function CompleteProfileScreen() {
         fechaNacimiento: values.fechaNacimiento,
         username: values.username.trim(),
         email: values.email.trim(),
-        password: values.password,
+        ...(passwordRequired ? { password: values.password } : {}),
         aceptoTerminos: true,
         versionTerminos: terms.version,
       });
@@ -329,28 +335,32 @@ export default function CompleteProfileScreen() {
               </View>
 
               <Input label="Email" value={values.email} onChangeText={(value) => update('email', value)} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={emailEnabled && !profileLoading && !saving} error={errors.email} touched={!!touched.email} onBlur={() => setTouched((current) => ({ ...current, email: true }))} />
-              <Input
-                label="Contraseña"
-                value={values.password}
-                onChangeText={(value) => update('password', value)}
-                secureTextEntry={!showPassword}
-                error={errors.password}
-                touched={!!touched.password}
-                editable={!profileLoading && !saving}
-                onBlur={() => setTouched((current) => ({ ...current, password: true }))}
-                suffix={<Pressable accessibilityRole="button" accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onPress={() => setShowPassword((value) => !value)} hitSlop={8}>{showPassword ? <EyeOff size={18} color={Colors.text} /> : <Eye size={18} color={Colors.text} />}</Pressable>}
-              />
-              <Input
-                label="Confirmar contraseña"
-                value={values.confirmPassword}
-                onChangeText={(value) => update('confirmPassword', value)}
-                secureTextEntry={!showConfirmation}
-                error={errors.confirmPassword}
-                touched={!!touched.confirmPassword}
-                editable={!profileLoading && !saving}
-                onBlur={() => setTouched((current) => ({ ...current, confirmPassword: true }))}
-                suffix={<Pressable accessibilityRole="button" accessibilityLabel={showConfirmation ? 'Ocultar confirmación' : 'Mostrar confirmación'} onPress={() => setShowConfirmation((value) => !value)} hitSlop={8}>{showConfirmation ? <EyeOff size={18} color={Colors.text} /> : <Eye size={18} color={Colors.text} />}</Pressable>}
-              />
+              {passwordRequired ? (
+                <>
+                  <Input
+                    label="Contraseña"
+                    value={values.password}
+                    onChangeText={(value) => update('password', value)}
+                    secureTextEntry={!showPassword}
+                    error={errors.password}
+                    touched={!!touched.password}
+                    editable={!profileLoading && !saving}
+                    onBlur={() => setTouched((current) => ({ ...current, password: true }))}
+                    suffix={<Pressable accessibilityRole="button" accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onPress={() => setShowPassword((value) => !value)} hitSlop={8}>{showPassword ? <EyeOff size={18} color={Colors.text} /> : <Eye size={18} color={Colors.text} />}</Pressable>}
+                  />
+                  <Input
+                    label="Confirmar contraseña"
+                    value={values.confirmPassword}
+                    onChangeText={(value) => update('confirmPassword', value)}
+                    secureTextEntry={!showConfirmation}
+                    error={errors.confirmPassword}
+                    touched={!!touched.confirmPassword}
+                    editable={!profileLoading && !saving}
+                    onBlur={() => setTouched((current) => ({ ...current, confirmPassword: true }))}
+                    suffix={<Pressable accessibilityRole="button" accessibilityLabel={showConfirmation ? 'Ocultar confirmación' : 'Mostrar confirmación'} onPress={() => setShowConfirmation((value) => !value)} hitSlop={8}>{showConfirmation ? <EyeOff size={18} color={Colors.text} /> : <Eye size={18} color={Colors.text} />}</Pressable>}
+                  />
+                </>
+              ) : null}
             </View>
 
             <View style={styles.termsSection}>

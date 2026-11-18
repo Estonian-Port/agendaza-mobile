@@ -23,7 +23,7 @@ export interface CompletarPerfilDTO {
   fechaNacimiento: string;
   username: string;
   email: string;
-  password: string;
+  password?: string;
   aceptoTerminos: true;
   versionTerminos: string | number;
 }

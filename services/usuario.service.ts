@@ -26,6 +26,10 @@ export const usuarioService = {
     await apiPost<void>(`${BASE}/verificacion-email`);
   },
 
+  async changeEmail(email: string): Promise<void> {
+    await apiPut<void>(`${BASE}/me/email`, { email });
+  },
+
   async confirmEmailVerification(codigo: string): Promise<void> {
     await apiPost<void>(`${BASE}/verificacion-email/confirmar`, { codigo });
   },
