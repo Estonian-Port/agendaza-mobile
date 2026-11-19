@@ -9,8 +9,12 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
+      "requireFullScreen": true,
       "bundleIdentifier": "com.estonianport.agendaza",
-      "buildNumber": "4"
+      "buildNumber": "4",
+      "infoPlist": {
+        "UIStatusBarStyle": "UIStatusBarStyleDefault"
+      }
     },
     "android": {
       "package": "com.estonianport.agendaza",
@@ -43,7 +47,14 @@
       "expo-sharing",
       "expo-asset",
       "./plugins/build.js",
-      "./plugins/releaseSigning.js"
+      "./plugins/releaseSigning.js",
+      "./plugins/iosXcodeConfig.js",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Agendaza requiere acceso a la cámara."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
